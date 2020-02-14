@@ -1,0 +1,23 @@
+%NProcShared=8
+%Chk=test_02_chk
+#T B3LYP/6-311++G opt
+
+test_02_opt
+
+0, 1
+C    -0.000000     0.000000    -0.000000
+H     0.235000     0.970000     0.436700
+H     0.018800    -0.762600     0.777800
+H    -0.991400     0.035000    -0.450300
+H     0.737600    -0.242500    -0.764200
+
+--Link1--
+%NProcShared=8
+%Chk=test_02_chk
+#T MP2/6-311G(d) geom=check guess=read output=wfn density=current pop=npa
+
+test_02
+
+0, 1
+
+test_02.wfn

@@ -1,0 +1,145 @@
+{
+  "_VERSION":1.0,
+  "_ATOMS": {
+    "H": [
+      {
+        "_NAME":"E1",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A1", "A2", "B1", "B2"],
+        "_PARS":{
+          "A1":0.04709,
+          "A2":-0.2180,
+          "B1": 4.477,
+          "B2": 4.844
+        },
+        "_BOND":"0"
+      },
+      {
+        "_NAME":"E2",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B"],
+        "_PARS":{
+          "A":0.640,
+          "B":2.495
+        },
+        "_BOND":"0"
+      },
+      {
+        "_NAME":"F1S",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B", "psi"],
+        "_PARS":{
+          "A":1.0,
+          "B":2.495,
+          "psi":1.0
+        },
+        "_BOND":"A"
+      },
+      {
+        "_NAME":"F2S",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B", "psi"],
+        "_PARS":{
+          "A":1.0,
+          "B":2.495,
+          "psi":2.0
+        },
+        "_BOND":"A"
+      },
+      {
+        "_NAME":"F1C",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B", "psi"],
+        "_PARS":{
+          "A":1.0,
+          "B":2.495,
+          "psi":1.0
+        },
+        "_BOND":"A"
+      },
+      {
+        "_NAME":"F2C",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B", "psi"],
+        "_PARS":{
+          "A":1.0,
+          "B":2.495,
+          "psi":2.0
+        },
+        "_BOND":"A"
+      }
+    ],
+    "O": [
+      {
+        "_NAME":"E1",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A1", "A2", "B1", "B2"],
+        "_PARS":{
+          "A1":316.284,
+          "B1": 15.835,
+          "A2": -9.789,
+          "B2": 6.439
+        },
+        "_BOND":"0"
+      },
+      {
+        "_NAME":"E2",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B"],
+        "_PARS":{
+          "A": 5.479,
+          "B": 2.710
+        },
+        "_BOND":"0"
+      },
+      {
+        "_NAME":"F1C",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B", "psi"],
+        "_PARS":{
+          "A": 1.0,
+          "B": 2.710,
+          "psi":1.0
+        },
+        "_BOND":"A"
+      },
+      {
+        "_NAME":"F2C",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B", "psi"],
+        "_PARS":{
+          "A": 1.0,
+          "B": 2.710,
+          "psi":2.0
+        },
+        "_BOND":"A"
+      },
+      {
+        "_NAME":"F1S",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B", "psi"],
+        "_PARS":{
+          "A": 1.0,
+          "B": 2.710,
+          "psi":1.0
+        },
+        "_BOND":"A"
+      },
+      {
+        "_NAME":"F2S",
+        "_PATH":"C:/Users/Bruno/Dropbox/doctorado/a2md/test/generalized_support.py",
+        "_KWS":["A", "B", "psi"],
+        "_PARS":{
+          "A": 1.0,
+          "B": 2.710,
+          "psi":2.0
+        },
+        "_BOND":"A"
+      }
+    ]
+  }
+
+}
+
+
+
