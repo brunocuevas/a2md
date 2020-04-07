@@ -35,7 +35,17 @@ const int symetry_index[10][3] = {
 	{ 0 , 0 , 2 }, // dzz
 	{ 1 , 1 , 0 }, // dxy
 	{ 1 , 0 , 1 }, // dxz
-	{ 0 , 1 , 1 }  // dyz
+	{ 0 , 1 , 1 }, // dyz
+	{ 3 , 0 , 0 },
+    { 0 , 3 , 0 },
+    { 0 , 0 , 3 },
+    { 2 , 1 , 0 },
+    { 2 , 0 , 1 },
+    { 0 , 2 , 1 },
+    { 1 , 2 , 0 },
+    { 1 , 0 , 2 },
+    { 0 , 1 , 2 },
+    { 1 , 1 , 1 }
 };
 
 const char atom_symbols[16][2] = {
@@ -934,40 +944,40 @@ int main(int argc, char *argv[]) {
 		printf("@ reading done. %d points to calculate\n", target_coordinates);
 		printf("@ checksum %f \n", checksum);
 
-	} else if (random_sample) {
-
-		printf("@ running \n" );
-		coordinates_buffer = malloc(sizeof(double) * 1000 * 3);
-
-		min_x = set_min(ccx, spacing, nuclei);
-		max_x = set_max(ccx, spacing, nuclei);
-		min_y = set_min(ccy, spacing, nuclei);
-		max_y = set_max(ccy, spacing, nuclei);
-		min_z = set_min(ccz, spacing, nuclei);
-		max_z = set_max(ccz, spacing, nuclei);
-
-		delta_x = max_x - min_x;
-		delta_y = max_y - min_y;
-		delta_z = max_z - min_z;
-
-		for (i = 0; i < 1000; i++) {
-
-			coordinates_buffer[i] =malloc(sizeof(double) * 3);
-
-			coordinates_buffer[i][0] = ((double)rand() / (double)RAND_MAX)*delta_x + min_x;
-			coordinates_buffer[i][1] = ((double)rand() / (double)RAND_MAX)*delta_y + min_y;
-			coordinates_buffer[i][2] = ((double)rand() / (double)RAND_MAX)*delta_z + min_z;
-
-			// printf(
-			// 	"%f %f %f\n",
-			// 	coordinates_buffer[i][0],
-			// 	coordinates_buffer[i][1],
-			// 	coordinates_buffer[i][2]
-			// );
-
-		}
-
-		target_coordinates = 1000;
+//	} else if (random_sample) {
+//
+//		printf("@ running \n" );
+//		coordinates_buffer = malloc(sizeof(double) * 1000 * 3);
+//
+//		min_x = set_min(ccx, spacing, nuclei);
+//		max_x = set_max(ccx, spacing, nuclei);
+//		min_y = set_min(ccy, spacing, nuclei);
+//		max_y = set_max(ccy, spacing, nuclei);
+//		min_z = set_min(ccz, spacing, nuclei);
+//		max_z = set_max(ccz, spacing, nuclei);
+//
+//		delta_x = max_x - min_x;
+//		delta_y = max_y - min_y;
+//		delta_z = max_z - min_z;
+//
+//		for (i = 0; i < 1000; i++) {
+//
+//			coordinates_buffer[i] =malloc(sizeof(double) * 3);
+//
+//			coordinates_buffer[i][0] = ((double)rand() / (double)RAND_MAX)*delta_x + min_x;
+//			coordinates_buffer[i][1] = ((double)rand() / (double)RAND_MAX)*delta_y + min_y;
+//			coordinates_buffer[i][2] = ((double)rand() / (double)RAND_MAX)*delta_z + min_z;
+//
+//			// printf(
+//			// 	"%f %f %f\n",
+//			// 	coordinates_buffer[i][0],
+//			// 	coordinates_buffer[i][1],
+//			// 	coordinates_buffer[i][2]
+//			// );
+//
+//		}
+//
+//		target_coordinates = 1000;
 
 
 	} else if (dxname) {
@@ -976,7 +986,7 @@ int main(int argc, char *argv[]) {
 		Setting a coordinates box according to the size of the system
 
 		*/
-
+        printf("hola!");
 		min_x = set_min(ccx, spacing, nuclei) ; max_x = set_max(ccx, spacing, nuclei) ;
 		min_y = set_min(ccy, spacing, nuclei) ; max_y = set_max(ccy, spacing, nuclei) ;
 		min_z = set_min(ccz, spacing, nuclei) ; max_z = set_max(ccz, spacing, nuclei) ;

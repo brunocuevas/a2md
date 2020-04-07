@@ -1,4 +1,4 @@
-from a2mdlib.qm import CubeFile
+from a2mdio.qm import CubeFile
 import matplotlib.pyplot as plt
 import numpy as np
 if __name__ == "__main__":

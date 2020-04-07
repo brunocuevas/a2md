@@ -1,0 +1,13 @@
+{
+  "_NAME":"a2md-protein-topology",
+  "_VERSION":1.0,
+  "_DESCRIPTION":"Topology of residues in proteins",
+  "_MODEL": {
+    "ALA":{
+      "CA":["H", "C", "CB", "N"],
+      "CB":["H1", "CA", "H2", "H3"],
+      "C":["O", "CA", "NR"],
+      "N":[""]
+    }
+  }
+}

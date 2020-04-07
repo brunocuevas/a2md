@@ -21,7 +21,7 @@ This two features are very important to train neural networks.
 - **modules.py**: organize the elementary functions into higher order objects that perform
 the density calculation when coefficients are provided.
 - **test/**: scripts to test this objects. Contain a test of the functions, a test of the modules,
-and a test of the autograd/gpu support.
+and a test of the autograd/gpu Support.
 - **a2md_topo_bonded_model.json**: a modified version of the same file in a2md. The reason for this
 modification is to ease some issues regarding the labelling of the functions. Besides that, 
 parameters are equivalent.    

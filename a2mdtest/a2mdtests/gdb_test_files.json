@@ -11,7 +11,8 @@
             "gdb_000001_s05.csv": 0.01,
             "gdb_000001_s06.csv": 0.001
         },
-        "wfn": "gdb_000001.wfn"
+        "wfn": "gdb_000001.wfn",
+        "pdb":""
     },
     "gdb_000002": {
         "mol2": "gdb_000002.mol2",
@@ -25,7 +26,8 @@
             "gdb_000002_s05.csv": 0.01,
             "gdb_000002_s06.csv": 0.001
         },
-        "wfn": "gdb_000002.wfn"
+        "wfn": "gdb_000002.wfn",
+        "pdb":""
     },
     "gdb_000003": {
         "mol2": "gdb_000003.mol2",
@@ -39,35 +41,8 @@
             "gdb_000003_s05.csv": 0.01,
             "gdb_000003_s06.csv": 0.001
         },
-        "wfn": "gdb_000003.wfn"
-    },
-    "gdb_000007": {
-        "mol2": "gdb_000007.mol2",
-        "out": "gdb_000007.out",
-        "path": "gdb_000007",
-        "surfaces": {
-            "gdb_000007_s01.csv": 1.5,
-            "gdb_000007_s02.csv": 0.25,
-            "gdb_000007_s03.csv": 0.15,
-            "gdb_000007_s04.csv": 0.1,
-            "gdb_000007_s05.csv": 0.01,
-            "gdb_000007_s06.csv": 0.001
-        },
-        "wfn": "gdb_000007.wfn"
-    },
-    "gdb_000037": {
-        "mol2": "gdb_000037.mol2",
-        "out": "gdb_000037.out",
-        "path": "gdb_000037",
-        "surfaces": {
-            "gdb_000037_s01.csv": 1.5,
-            "gdb_000037_s02.csv": 0.25,
-            "gdb_000037_s03.csv": 0.15,
-            "gdb_000037_s04.csv": 0.1,
-            "gdb_000037_s05.csv": 0.01,
-            "gdb_000037_s06.csv": 0.001
-        },
-        "wfn": "gdb_000037.wfn"
+        "wfn": "gdb_000003.wfn",
+        "pdb": ""
     },
     "gdb_000214": {
         "mol2": "gdb_000214.mol2",
@@ -81,20 +56,38 @@
             "gdb_000214_s05.csv": 0.01,
             "gdb_000214_s06.csv": 0.001
         },
-        "wfn": "gdb_000214.wfn"
+        "wfn": "gdb_000214.wfn",
+        "pdb": ""
     },
-    "gdb_000397": {
-        "mol2": "gdb_000397.mol2",
-        "out": "gdb_000397.out",
-        "path": "gdb_000397",
-        "surfaces": {
-            "gdb_000397_s01.csv": 1.5,
-            "gdb_000397_s02.csv": 0.25,
-            "gdb_000397_s03.csv": 0.15,
-            "gdb_000397_s04.csv": 0.1,
-            "gdb_000397_s05.csv": 0.01,
-            "gdb_000397_s06.csv": 0.001
+    "methanethiol": {
+        "mol2": "methanethiol.mol2",
+        "out": "methanethiol.out",
+        "path": "methanethiol",
+        "wfn": "methanethiol.wfn",
+        "surfaces" : {},
+        "pdb":""
+    },
+    "all20peptide": {
+        "pdb": "all20peptide.pdb",
+        "path": "all20peptide",
+        "mol2":"",
+        "out":"",
+        "surfaces":{},
+        "wfn":""
+    },
+    "aca": {
+        "pdb": "ACA_000000.pdb",
+        "path": "ACA",
+        "mol2": "ACA_000000.mol2",
+        "out": "ACA.g09.output",
+        "surfaces":{
+            "ACA_s1.csv": 1.50,
+            "ACA_s2.csv": 0.25,
+            "ACA_s3.csv": 0.15,
+            "ACA_s4.csv": 0.10,
+            "ACA_s5.csv": 0.01,
+            "ACA_s6.csv": 0.001
         },
-        "wfn": "gdb_000397.wfn"
+        "wfn":""
     }
 }

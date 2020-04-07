@@ -1,27 +1,8 @@
 import numpy as np
-from scipy.special import erfi, erf, expi
+from scipy.special import erfi, erf, expi, gamma
 
 INVERSE_DIST_DUMPING = 1e-3
 
-SINEINTEGRAL = [
-    np.pi/2,
-    0,
-    0,
-    0,
-]
-COSINEINTEGRAL = [
-    0,
-    -2/3,
-    0,
-    -2/15,
-]
-
-TRIGOEXPANSION = [
-    lambda u,v : 2*u + ((4 + np.pi)*v/2),
-    lambda u,v : 4*u/3 + 2*v,
-    lambda u,v : 2*(u+v),
-    lambda u,v : (28/15)*u + 2*v
-]
 NUM2ELE = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne']
 ELE2NUM = dict(H = 0, He = 1, Li = 2, Be = 3, B = 4 , C = 5, N = 6, O = 7, F = 8, Ne = 9 )
 
@@ -64,51 +45,30 @@ def get_angle(x, center, ref_frame = None):
         z = np.arccos(z)
         return z, d
 
-# DENSITY FUNCTIONS
 
-#   Exponential functions
-# ------------------------------------
-def expfun(A,B, d):
+def generalized_exponential(A, B, d, P=0):
     """
-    exponential function A*exp(-B*x)
+    generalized exp
+    ---
+    Includes a polymonia
     :param A: Coefficient
     :param B: Exponent
-    :param d: Distance
-    :type A: float
-    :type B: float
-    :type d: np.ndarray
-    :return: exponential function
-    :rtype: np.ndarray
-    """
-    return A*np.exp(-B*d)
-
-def xexpfun(A, B, d):
-    """
-    xexponential function x*F*exp(-G*x)
-    :param A: Coefficient
-    :param B: Exponent
-    :param d: Distance
-    :type A: float
-    :type B: float
-    :type d: np.ndarray
-    :return: xexponential function
-    :rtype: np.ndarray
-    """
-    return d * A * np.exp(-B * d)
-
-def x2expfun(A, B, d):
-    """
-
-    x2exponential funcion (x^2)*F*exp(-G*x)
-    :param A:
-    :param B:
-    :param d:
+    :param d: distance
+    :param P: polynomial degree
     :return:
     """
-    return A * (d * d) * np.exp(-B * d)
+    return A * np.power(d, P) * np.exp(-B * d)
 
-#   Gaussian functions
-# ------------------------------------
+def generalized_exponential_integral(A, B, P=0):
+    """
+
+    :param A:
+    :param B:
+    :param P:
+    :return:
+    """
+    return (A * np.power(B, -3-P)) * gamma(3 + P)
+
 
 def gaussian(alpha, h, d):
     """
@@ -120,164 +80,14 @@ def gaussian(alpha, h, d):
     """
     return h * np.exp(-alpha * (d**2))
 
-#   Trigonometric functions
-# ------------------------------------
+# Trigonometric functions
 
 def nonefun(z):
     return 1.0
 
-def sinfun(psi, z):
+def angular_gaussian_integral(alpha):
     """
 
-    :param psi:
-    :param z:
-    :return:
-    """
-    return np.sin(psi*z)
-
-def cosfun(psi, z):
-    """
-
-    :param psi:
-    :param z:
-    :return:
-    """
-    return np.cos(psi*z)
-
-
-def cosssin(u,v,s,z):
-    """
-    sine + cosine function v*sin(s*z)+u*(cos(s*z))
-    :param u: cosine coefficient
-    :param v: sine coefficient
-    :param s: period
-    :param z: angle
-    :type u: float
-    :type v: float
-    :type s: int
-    :type z: np.ndarray
-    :return: sin + cos function
-    :rtype: np.ndarray
-    """
-    s = float(s)
-    return (u*(1.0 + np.cos(s*z))) + (v*(1.0 + np.sin(s*z)))
-
-# INTEGRAL FUNCTIONS
-
-# Integral of exponential functions
-# ------------------------------------------
-
-def expfun_integral(A,B):
-    """
-    integral of A*exp(-B*x) in R3 from 0 to inf
-    :param A: coefficient
-    :param B: exponent
-    :type A: float
-    :type B: float
-    :return: the integral
-    :rtype: float
-    """
-    return 4*np.pi * A / (B**3)
-
-def xexpfun_integral(A,B):
-    """
-    integral of A*exp(-B*x) in R3 from 0 to inf
-    :param A: coefficient
-    :param B: exponent
-    :type A: float
-    :type B: float
-    :return: the integral
-    :rtype: float
-    """
-    return 12.0 * np.pi * A / (B**4)
-
-
-def x2expfun_integral(A,B):
-    """
-
-    :param A:
-    :param B:
-    :return:
-    """
-    return 48.0 * np.pi * A/(B**5)
-
-def x2expfun_integral_trigo(fun, G, u, k):
-    """
-
-    :param fun:
-    :param G:
-    :param u:
-    :param k:
-    :return:
-    """
-    if fun == np.sin :
-        return np.pi * 48.0 * u * (G ** -5) * SINEINTEGRAL[k]
-    elif fun == np.cos :
-        return np.pi * 48.0 * u * (G ** -5) * COSINEINTEGRAL[k]
-    else :
-        raise NotImplementedError
-
-def xexpfun_integral_trigo(fun, G,u,k):
-    """
-
-    :param fun:
-    :param G:
-    :param u:
-    :param k:
-    :return:
-    """
-    if fun == np.sin :
-        return np.pi * 12 * u * (G ** -4) * SINEINTEGRAL[k]
-    elif fun == np.cos :
-        return np.pi * 12 * u * (G ** -4) * COSINEINTEGRAL[k]
-    else :
-        raise NotImplementedError
-
-def expfun_integral_trigo(fun, G,u,k):
-    """
-
-    :param fun:
-    :param G:
-    :param u:
-    :param k:
-    :return:
-    """
-    if fun == np.sin :
-        return np.pi * 8 * u * (G ** -3) * SINEINTEGRAL[k] # need to check it
-    elif fun == np.cos :
-        return np.pi * 8 * u * (G ** -3) * COSINEINTEGRAL[k] # need to check it
-    else :
-        raise NotImplementedError
-
-def xexpfun_integral_vk(F,G,u,v,k):
-    """
-    integral of F*x*exp(-G*x)*sum_psi^Psi(u*(1+cos(psi*z))+v*(1+sin(psi*z)) in R3
-    :param F: Radial coefficient
-    :param G: Radial exponent
-    :param u: Array of sine coefficients
-    :param v: Array of cosine coefficients
-    :param k: Size of the expansion
-    :type F: float
-    :type G: float
-    :type u: np.ndarray
-    :type v: np.ndarray
-    :type k: int
-    :return: the integral
-    :rtype: float
-    """
-    U = np.zeros(k, dtype='float64')
-    for psi in range(k):
-        U[psi] = TRIGOEXPANSION[psi](u[psi], v[psi])
-    return np.pi*12*F*(G**-4)*U.sum()
-
-# Integral of gaussian functions
-# ------------------------------------------
-
-def angular_gaussian_integral(G, u, alpha):
-    """
-
-    :param G:
-    :param u:
     :param alpha:
     :return:
     """
@@ -291,28 +101,10 @@ def angular_gaussian_integral(G, u, alpha):
     factor2 -= erfi(inside_term_1 / (2 * np.sqrt(alpha)))
     factor2 -= erfi(inside_term_2 / (2 * np.sqrt(alpha)))
 
-    factor3 = 12 * np.pi/(G**4) * u
-
-    return np.real(factor1*factor2*factor3)
+    return np.real(factor1*factor2)
 
 def nonfun_integral():
     return 1.0
-
-def sinfun_integral(psi):
-    """
-
-    :param psi:
-    :return:
-    """
-    return SINEINTEGRAL[int(psi) - 1]
-
-def cosfun_integral(psi):
-    """
-
-    :param psi:
-    :return:
-    """
-    return COSINEINTEGRAL[int(psi) - 1]
 
 # First moments integral
 
@@ -425,11 +217,10 @@ def ep_xg_radial3(G, d):
     return p3 + u3
 
 
-def ep_xg_angular0(alpha, z):
+def ep_xg_angular0(alpha):
     """
 
     :param alpha:
-    :param z:
     :return:
     """
     factor1 = (np.exp(-1 / (4 * alpha)) * np.sqrt(np.pi)) / (4 * np.sqrt(alpha))
@@ -509,89 +300,3 @@ def electrostatic_potential_xexp_gaussian(G, alpha, d, z):
         u_p = P(l)
         electrostatic_potential_buffer = electrostatic_potential_buffer + (u_rad * u_ang * u_p)
     return electrostatic_potential_buffer
-
-def trapezoidal_3d_integral(fun, domain, resolution, sign_operator=False):
-    """
-
-    :param fun:
-    :param domain:
-    :param resolution:
-    :param sign_operator:
-    :return:
-    """
-    h = resolution
-    xx = np.arange(domain[0], domain[1] + h, h)
-    yy = np.arange(domain[2], domain[3] + h, h)
-    zz = np.arange(domain[4], domain[5] + h, h)
-
-    zz_m = np.array([domain[4], domain[4] + h], dtype='float64')
-    I = 0.0
-    N = 0.0
-    h3 = h * h * h / 8
-    #    X, Y, Z = np.meshgrid(xx, yy, zz_m)
-    P = np.zeros((xx.size, yy.size, zz_m.size))
-    XYZ = np.zeros((xx.size, 3), dtype='float64')
-    for iy in range(yy.size):
-        XYZ[:, 0] = xx
-        XYZ[:, 1] = yy[iy]
-        XYZ[:, 2] = zz[0]
-        P[:, iy, 0] = fun(XYZ)
-        XYZ[:, 2] = zz[1]
-        P[:, iy, 1] = fun(XYZ)
-
-    for iz in range(1, zz.size):
-
-        P_av = np.zeros((P.shape[0] - 1, P.shape[1] - 1), dtype='float64')
-        P_av[:, :] += P[:-1, :-1, -1]  # lll
-        P_av[:, :] += P[:-1, :-1, 1]  # llu
-        P_av[:, :] += P[:-1, 1:, -1]  # lul
-        P_av[:, :] += P[:-1, 1:, 1]  # luu
-        P_av[:, :] += P[1:, :-1, -1]  # ull
-        P_av[:, :] += P[1:, :-1, 1]  # ulu
-        P_av[:, :] += P[1:, 1:, -1]  # uul
-        P_av[:, :] += P[1:, 1:, 1]  # uuu
-
-        if sign_operator:
-            N += np.sum(P_av[P_av < 0.0]) * h3
-        I += np.sum(P_av) * h3
-
-        for iy in range(yy.size):
-            XYZ[:, 0] = xx
-            XYZ[:, 1] = yy[iy]
-            XYZ[:, 2] = zz[iz]
-            if iz % 2 == 0:
-                P[:, iy, 0] = fun(XYZ)
-            else:
-                P[:, iy, 1] = fun(XYZ)
-
-    if sign_operator:
-        return I, N
-    else:
-        return N
-
-RADIAL_PARAMS = {
-    expfun: ['A', 'B'],
-    xexpfun: ['A', 'B'],
-    x2expfun: ['A', 'B']
-}
-
-ANGULAR_PARAMS = {
-    cosssin: ['u', 'v', 's'],
-    sinfun: ['psi'],
-    cosfun: ['psi'],
-    nonefun: [],
-    gaussian : ['h', 'alpha']
-}
-
-RADIAL_INTEGRAL_FUNCTIONS = {
-    expfun: expfun_integral,
-    xexpfun: xexpfun_integral,
-    x2expfun: x2expfun_integral
-}
-
-ANGULAR_INTEGRAL_FUNCTIONS = {
-    sinfun: sinfun_integral,
-    cosfun: cosfun_integral,
-    nonefun: nonfun_integral
-}
-

@@ -1,6 +1,6 @@
 import numpy as np
-from a2mdlib.molecules import Mol2
-from a2mdlib.qm import Wavefunction, GaussianLog
+from a2mdio.molecules import Mol2
+from a2mdio.qm import WaveFunction, GaussianLog
 
 
 def sample_box(
@@ -59,7 +59,7 @@ def merge_sources(mol2, gaussian_output, wavefunction):
     :param gaussian_output:
     :type gaussian_output: GaussianLog
     :param wavefunction:
-    :type wavefunction: Wavefunction
+    :type wavefunction: WaveFunction
     :return: Mol2 object with charges obtained from gaussian output and
     coordinates obtained from wavefunction file
     """

@@ -2,7 +2,7 @@ import torch
 from a2mdnet.utils import Parametrizer
 from a2md.preprocessor import preprocessor
 from a2md.amd import A2MD
-from a2mdlib.molecules import Mol2
+from a2mdio.molecules import Mol2
 import click
 import json
 import time

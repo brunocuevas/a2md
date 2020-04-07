@@ -6,7 +6,7 @@ from a2mdt.functions import gaussian_kernel, exponential_kernel, xexponential_ke
 from a2mdt.functions import select_distances, select_labels
 from a2mdt.functions import expand_parameter
 from a2md.utils import element2an
-from a2mdlib.molecules import UNITS_TABLE
+from a2mdio.molecules import UNITS_TABLE
 
 
 def convert_params(pars):
@@ -304,7 +304,7 @@ class A2MDt:
         :param extend:
         :return:
         """
-        from a2mdlib.qm import ElectronDensity
+        from a2mdio.qm import ElectronDensity
         import numpy as np
         l, t, r, c_i, c_a = mol
         extend = extend * UNITS_TABLE['au']['angstrom']

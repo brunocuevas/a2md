@@ -1,4 +1,4 @@
-from a2mdlib.molecules import Mol2
+from a2mdio.molecules import Mol2
 from a2mdnet.data import convert_label2tensor
 from a2md.utils import Integrator
 from a2md.mathfunctions import expfun_integral, angular_gaussian_integral

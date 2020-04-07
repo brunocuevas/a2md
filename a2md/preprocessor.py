@@ -1,4 +1,4 @@
-from a2md.baseclass import A2MD_basis
+from a2md.baseclass import A2MDBaseClass
 import copy
 import numpy as np
 import json
@@ -8,105 +8,10 @@ import sys
 
 ANG2AU = 1.8897
 
-ELEMENT2AN = dict(
-    H=1,
-    C=6,
-    N=7,
-    O=8
-)
-
-class a2md_general_parameters(A2MD_basis):
-    def __init__(self, version, verbose = False, filename = None):
-        A2MD_basis.__init__(self, verbose=verbose, name='a2md parameters store')
-        self.__filename = filename
-        self.__version = version
-        self.__params = None
-
-    def __check_fundamental_params(self, tmp_params):
-        self.log("checking parameters")
-        pars = tmp_params['_ATOMS']
-        for k, atom in pars.items():
-            for fun in  atom:
-                name_check = '_NAME' in fun
-                path_check = '_PATH' in fun
-                kws_check = '_KWS' in fun
-                specific_pars_check = '_PARS' in fun
-                bonding_check = '_BOND' in fun
-                global_check = name_check & path_check & kws_check & specific_pars_check & bonding_check
-                if not global_check:
-                    raise IOError("some fundamental keywords were missing. check documentation")
-        self.log("no errors fundamental kws error detected")
-        return True
-
-    def get_atom(self, atom):
-        all_atoms = self.__params['_ATOMS']
-        return all_atoms[atom]
-
-    def get_atoms(self):
-        return list(self.__params['_ATOMS'].keys())
-
-    def get_filename(self):
-        return self.__filename
-
-    def get_version(self):
-        return self.__version
-
-    def get_params(self):
-        return self.__params
-
-    def set_filename(self):
-        return self.__filename
-
-    def set_params_from_dict(self, pars):
-        if pars['_VERSION'] == self.__version :
-            self.log("version was correct")
-        else:
-            self.log("WARNING. Version is not correct. Errors may arise")
-        if self.__check_fundamental_params(pars):
-            self.__params = pars
-        else:
-            raise IOError
-
-    def read_parameters(self):
-        with open(self.__filename) as f:
-            tmp_params = json.load(f)
-        if tmp_params['_VERSION'] == self.__version :
-            self.log("version was correct")
-        else:
-            self.log("WARNING. Version is not correct. Errors may arise")
-        if self.__check_fundamental_params(tmp_params):
-            self.__params = tmp_params
-        else:
-            raise IOError
 
 
-    def set_support_library(self):
-        from a2md.amd import SUPPORT_TYPE
-        for k, atom in self.__params['_ATOMS'].items():
-            for fun in atom:
-                name = fun['_NAME']
-                if fun['_NAME'] not in SUPPORT_TYPE.keys():
-                    try :
-                        module_name = os.path.basename(fun['_PATH']).replace('.py','')
-                        current_module = import_module(module_name, fun['_PATH'])
-                        SUPPORT_TYPE[name] = getattr(current_module, fun['_NAME'])
-                    except AttributeError:
-                        raise IOError("the provided function was not located in the provided file")
-                    except ModuleNotFoundError:
-                        sys.path.append(fun['_PATH'].replace(os.path.basename(fun['_PATH']), ''))
-                        module_name = os.path.basename(fun['_PATH']).replace('.py', '')
-                        current_module = import_module(module_name, fun['_PATH'])
-                        SUPPORT_TYPE[name] = getattr(current_module, fun['_NAME'])
 
-
-    def write_parameters(self, filename):
-        if self.__params is None :
-            raise RuntimeError("there were no parameters")
-        with open(filename, 'w') as f:
-            json.dump(self.__params, f, indent=4, sort_keys=True)
-
-
-class preprocessor(A2MD_basis):
+class preprocessor(A2MDBaseClass):
     def __init__(self, file=None, input_format=None, verbose=True):
         """
         preprocessor eases the parametrization of aAMD.
@@ -116,7 +21,7 @@ class preprocessor(A2MD_basis):
         :param verbose:
         """
         from a2md import AMD_PARAMS_19
-        A2MD_basis.__init__(self, name='aAMD preprocessor', verbose=verbose)
+        A2MDBaseClass.__init__(self, name='aAMD preprocessor', verbose=verbose)
         self.__params = copy.copy(AMD_PARAMS_19)
         self.__molecule_coordinates = None
         self.__molecule_elements = None
@@ -129,219 +34,9 @@ class preprocessor(A2MD_basis):
                 input_format=input_format
             )
 
-    def __parametrize_frozen_core_gaussian_model(self):
-        number_atoms = len(self.__molecule_elements)
-        A = []
-        Xi = []
-        C = []
-        PN = []
-        F = []
-
-        for atom_idx in range(number_atoms):
-
-            elem = self.__molecule_elements[atom_idx]
-            if elem == 'H':
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        A3=self.__params[elem]['AA'],
-                        B3=self.__params[elem]['BA']
-                    )
-                )
-                PN.append((atom_idx, 'OR'))
-                F.append(False)
-                C.append(1.0)
-            else:
-                # Adding the core function
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        A3=self.__params[elem]['A1'],
-                        B3=self.__params[elem]['B1'],
-                    )
-                )
-                PN.append((atom_idx, 'ORC'))
-                F.append(True)
-                C.append(1.0)
-                # Adding the core-valence function
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        A3=self.__params[elem]['A2'],
-                        B3=self.__params[elem]['B2'],
-                    )
-                )
-                PN.append((atom_idx, 'ORCV'))
-                F.append(False)
-                C.append(1.0)
-                # Adding the valence function
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        A3=self.__params[elem]['A3'],
-                        B3=self.__params[elem]['B3'],
-                    )
-                )
-                PN.append((atom_idx, 'ORV'))
-                F.append(False)
-                C.append(1.0)
-                # Angular functions
-            for bond in self.__molecule_topo[atom_idx]:
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        U=self.__params[elem]['U'],
-                        G=self.__params[elem]['G'],
-                        Alpha=self.__params[elem]['Alpha1'],
-                        Psi=0
-                    )
-                )
-
-                PN.append((atom_idx, 'AG', bond))
-                F.append(False)
-                C.append(1.0)
-
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        U=self.__params[elem]['U'],
-                        G=self.__params[elem]['G'],
-                        Alpha=self.__params[elem]['Alpha2'],
-                        Psi=1
-                    )
-                )
-
-                PN.append((atom_idx, 'AG', bond))
-                F.append(False)
-                C.append(1.0)
-
-        number_functions = len(A)
-        atom_parametrization_list = [dict()] * number_functions
-
-        for xi_iter in range(number_functions):
-            tmp_input = dict(
-                center=A[xi_iter],
-                support_type=PN[xi_iter][1],
-                coefficient=C[xi_iter],
-                frozen=F[xi_iter]
-            )
-            tmp_params = dict()
-            for key, item in Xi[xi_iter].items():
-                tmp_params[key] = item
-            tmp_input['params'] = tmp_params
-            if PN[xi_iter][1][0] == 'A':
-                try:
-                    tmp_input['bond'] = PN[xi_iter][2]
-                except IndexError:
-                    raise IOError("angular support functions should have a bonded atom")
-            else:
-                tmp_input['bond'] = None
-
-            atom_parametrization_list[xi_iter] = tmp_input
-
-        return atom_parametrization_list
-
-    def __parametrize_frozen_core_model(self):
-        number_atoms = len(self.__molecule_elements)
-        A = []
-        Xi = []
-        C = []
-        PN = []
-        F = []
-
-        for atom_idx in range(number_atoms):
-
-            elem = self.__molecule_elements[atom_idx]
-            if elem == 'H':
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        A3=self.__params[elem]['AA'],
-                        B3=self.__params[elem]['BA']
-                    )
-                )
-                PN.append((atom_idx, 'OR'))
-                F.append(False)
-                C.append(1.0)
-            else:
-                # Adding the core function
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        A3=self.__params[elem]['A1'],
-                        B3=self.__params[elem]['B1'],
-                    )
-                )
-                PN.append((atom_idx, 'ORC'))
-                F.append(True)
-                C.append(1.0)
-                # Adding the core-valence function
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        A3=self.__params[elem]['A2'],
-                        B3=self.__params[elem]['B2'],
-                    )
-                )
-                PN.append((atom_idx, 'ORCV'))
-                F.append(False)
-                C.append(1.0)
-                # Adding the valence function
-                A.append(atom_idx)
-                Xi.append(
-                    dict(
-                        A3=self.__params[elem]['A3'],
-                        B3=self.__params[elem]['B3'],
-                    )
-                )
-                PN.append((atom_idx, 'ORV'))
-                F.append(False)
-                C.append(1.0)
-                # Angular functions
-            for bond in self.__molecule_topo[atom_idx]:
-                for psi in range(self.__params[elem]['Psi']):
-                    A.append(atom_idx)
-                    Xi.append(
-                        dict(
-                            U=self.__params[elem]['U'],
-                            G=self.__params[elem]['G'],
-                            Psi=psi
-                        )
-                    )
-                    
-                    PN.append((atom_idx, 'AC', bond))
-                    F.append(False)
-                    C.append(1.0)
-
-        number_functions = len(A)
-        atom_parametrization_list = [dict()] * number_functions
-
-        for xi_iter in range(number_functions):
-            tmp_input = dict(
-                center=A[xi_iter],
-                support_type=PN[xi_iter][1],
-                coefficient=C[xi_iter],
-                frozen=F[xi_iter]
-            )
-            tmp_params = dict()
-            for key, item in Xi[xi_iter].items():
-                tmp_params[key] = item
-            tmp_input['params'] = tmp_params
-            if PN[xi_iter][1][0] == 'A':
-                try:
-                    tmp_input['bond'] = PN[xi_iter][2]
-                except IndexError:
-                    raise IOError("angular support functions should have a bonded atom")
-            else:
-                tmp_input['bond'] = None
-
-            atom_parametrization_list[xi_iter] = tmp_input
-
-        return atom_parametrization_list
-
     @staticmethod
     def __read_mol2(file, xyz_array, elem_array, topo_array, charge_array):
-        from a2mdlib.molecules import Mol2
+        from a2mdio.molecules import Mol2
         mol2_instance = Mol2(file, verbose=False)
 
         labels = mol2_instance.get_labels()
@@ -375,20 +70,6 @@ class preprocessor(A2MD_basis):
 
     def get_charge(self):
         return copy.copy(self.__molecule_charge)
-
-    def get_bond_median_points(self):
-        mol_coords=self.__molecule_coordinates
-        mol_topo=self.__molecule_topo
-        topo_sorted_dict = []
-        median_points_coords = []
-        for a1, bonded in enumerate(mol_topo):
-            for a2 in bonded:
-                label = ''.join(sorted([str(a1), str(a2)]))
-                if not label in topo_sorted_dict :
-                    topo_sorted_dict.append(label)
-                    median = (mol_coords[a1,:] + mol_coords[a2,:])/2.0
-                    median_points_coords.append(median)
-        return np.array(median_points_coords)
 
     def read_parameters(self, filename=None, dictionary=None):
         """
@@ -439,117 +120,7 @@ class preprocessor(A2MD_basis):
         self.__molecule_topo = topo_array
         self.__molecule_charge = np.array(charge_array)
 
-    def parametrize(self, kind = 'proto'):
-        if not kind in [
-            'proto', 'mol', 'bond', 'trigonometric', 'none', 'frozen_core', 'frozen_core_gaussian'
-        ]:
-            raise IOError("the specified kind of setup is not implemented")
-
-        number_atoms = len(self.__molecule_elements)
-        A  = []
-        Xi = []
-        C  = []
-        PN = []
-
-        if kind == 'none':
-            return self.__molecule_coordinates, self.__molecule_charge, self.__molecule_topo, None
-        elif kind == 'frozen_core':
-            atom_parametrization_list = self.__parametrize_frozen_core_model()
-            return self.__molecule_coordinates, self.__molecule_charge, self.__molecule_topo, atom_parametrization_list
-        elif kind == 'frozen_core_gaussian':
-            atom_parametrization_list = self.__parametrize_frozen_core_gaussian_model()
-            return self.__molecule_coordinates, self.__molecule_charge, self.__molecule_topo, atom_parametrization_list
-        else :
-            for aim in range(number_atoms):
-                elem = self.__molecule_elements[aim]
-                if kind in ['proto', 'mol', 'trigonometric']:
-                    A.append(aim)
-                    Xi.append(
-                        dict(
-                            A1=self.__params[elem]['A1'],
-                            A2=self.__params[elem]['A2'],
-                            B1=self.__params[elem]['B1'],
-                            B2=self.__params[elem]['B2'],
-                        )
-                    )
-                    PN.append((aim, 'IR'))
-                    C.append(1.0)
-
-                    A.append(aim)
-                    Xi.append(
-                        dict(
-                            A3=self.__params[elem]['A3'],
-                            B3=self.__params[elem]['B3'],
-                        )
-                    )
-                    PN.append((aim, 'OR'))
-                    C.append(1.0)
-
-                if kind == 'mol' or kind == 'bond':
-                    for bond in self.__molecule_topo:
-
-                        A.append(aim)
-                        Xi.append(
-                            dict(
-                                F=self.__params[elem]['F'],
-                                G=self.__params[elem]['G'],
-                                U=self.__params[elem]['U'],
-                                V=self.__params[elem]['V'],
-                                Psi=self.__params[elem]['Psi'],
-                            )
-                        )
-                        PN.append((aim, 'ACS', bond))
-                        C.append(1.0)
-
-                if kind == 'trigonometric':
-                    for bond in self.__molecule_topo[aim]:
-                        for psi in range(self.__params[elem]['Psi']):
-
-                            A.append(aim)
-                            Xi.append(
-                                dict(
-                                    U=self.__params[elem]['U'],
-                                    G=self.__params[elem]['G'],
-                                    Psi=psi
-                                )
-                            )
-                            PN.append((aim, 'AC', bond))
-                            C.append(1.0)
-
-                            A.append(aim)
-                            Xi.append(
-                                dict(
-                                    U=self.__params[elem]['V'],
-                                    G=self.__params[elem]['G'],
-                                    Psi=psi
-                                )
-                            )
-                            PN.append((aim, 'AS', bond))
-                            C.append(1.0)
-
-            number_functions = len(A)
-
-            atom_parametrization_list = [dict()] * number_functions
-
-            for xi_iter in range(number_functions):
-                tmp_input = dict(center=A[xi_iter], support_type=PN[xi_iter][1], coefficient=C[xi_iter])
-                tmp_params = dict()
-                for key, item in Xi[xi_iter].items():
-                    tmp_params[key] = item
-                tmp_input['params'] = tmp_params
-                if PN[xi_iter][1][0] == 'A':
-                    try:
-                        tmp_input['bond'] = PN[xi_iter][2]
-                    except IndexError:
-                        raise IOError("angular support functions should have a bonded atom")
-                else:
-                    tmp_input['bond'] = None
-
-                atom_parametrization_list[xi_iter] = tmp_input
-
-            return self.__molecule_coordinates, self.__molecule_charge, self.__molecule_topo, atom_parametrization_list
-
-    def parametrize_from_modelfile(self, modelfile, input_format='json'):
+    def parametrize(self, modelfile, input_format='json'):
         """
 
         :param modelfile:
@@ -595,89 +166,8 @@ class preprocessor(A2MD_basis):
         self.__molecule_topo = topo
 
 
-class generalizable_preprocessor(preprocessor):
-    def __init__(self, verbose = False):
-        preprocessor.__init__(self, verbose=verbose)
-        self.custom_pars = None
 
-    def read_custom_parameters(self, filename=None, dictionary=None):
-        if filename is not None:
-            a2md_pars = a2md_general_parameters(version=1.0, filename=filename)
-        elif dictionary is not None:
-            a2md_pars = a2md_general_parameters(version=1.0)
-            a2md_pars.set_params_from_dict(dictionary)
-        else:
-            raise IOError
-        a2md_pars.read_parameters()
-        a2md_pars.set_support_library()
-        self.custom_pars = a2md_pars
-
-
-    def parametrize(self, kind = 'trigonometric'):
-        """
-
-        :param kind:
-        :return:
-        """
-        if kind in ['proto', 'mol', 'bond', 'trigonometric', 'none']:
-            return super(generalizable_preprocessor, self).parametrize(kind=kind)
-        else:
-            if self.custom_pars is None:
-                raise IOError("custom parameters were not defined")
-            cp = self.custom_pars # :type cp: a2md_general_parameters
-            """:type cp: a2md_general_parameters"""
-            atom_coordinates = self.get_coordinates()
-            atom_labels = self.get_labels()
-            topology = self.get_topology()
-            charge = self.get_charge()
-            A = []
-            Xi = []
-            C = []
-            PN = []
-            B = []
-            number_atoms = atom_coordinates.shape[0]
-            # ATOM LOOP
-            for atom_index in range(number_atoms):
-                atom_l = atom_labels[atom_index]
-                atom_fun_set = cp.get_atom(atom_l)
-                # SUPPORT FUNCTION LOOP
-                for fun in atom_fun_set:
-                    if fun['_BOND'] != "0":
-                        # BONDED FUNCTIONS
-                        for bond in topology[atom_index]:
-                            if atom_labels[bond] == fun['_BOND'] or "A" == fun["_BOND"]:
-                                A.append(atom_index)
-                                Xi.append(fun['_PARS'])
-                                PN.append((atom_index, fun['_NAME'], bond))
-                                C.append(1.0)
-                                B.append(bond)
-                    else:
-                        # NON-BONDED FUNCTIONS
-                        A.append(atom_index)
-                        Xi.append(fun['_PARS'])
-                        PN.append((atom_index, fun['_NAME']))
-                        C.append(1.0)
-                        B.append(None)
-            number_functions = len(A)
-
-            atom_parametrization_list = [dict()] * number_functions
-            # DICTIONARY OF PARAMETERS IN THE FORMAT THAT A2MD.AMD.AAMD LIKES
-            for xi_iter in range(number_functions):
-                tmp_input = dict(
-                    center=A[xi_iter],
-                    support_type=PN[xi_iter][1],
-                    coefficient=C[xi_iter],
-                )
-                tmp_params = dict()
-                for key, item in Xi[xi_iter].items():
-                    tmp_params[key] = item
-                tmp_input['params'] = tmp_params
-                tmp_input['bond']   = B[xi_iter]
-                atom_parametrization_list[xi_iter] = tmp_input
-            return atom_coordinates, charge, topology, atom_parametrization_list
-
-
-class model_parser(A2MD_basis):
+class model_parser(A2MDBaseClass):
     allowed_formats = ['json']
     def __init__(self, m, input_format='json'):
         """
@@ -685,7 +175,7 @@ class model_parser(A2MD_basis):
         :param m:
         :param input_format:
         """
-        A2MD_basis.__init__(self, name='model parser', verbose=False)
+        A2MDBaseClass.__init__(self, name='model parser', verbose=False)
         if input_format == 'json':
             self.model_contents = self.read_json(m)
         elif input_format == 'dict':
@@ -743,7 +233,7 @@ class model_parser(A2MD_basis):
 
         return A, Xi, PN, F, C
 
-class symmetry_features(A2MD_basis):
+class symmetry_features(A2MDBaseClass):
     """
 
     This class allows to define symmetry features between atoms and bonds, so their parameters
@@ -755,8 +245,8 @@ class symmetry_features(A2MD_basis):
 
         :param file:
         """
-        from a2mdlib.molecules import Mol2
-        A2MD_basis.__init__(self, name='symfeats', verbose=False)
+        from a2mdio.molecules import Mol2
+        A2MDBaseClass.__init__(self, name='symfeats', verbose=False)
         if file is not None:
             self.__mol = Mol2(file=file, verbose=False)
             self.__mol.change_units('au')
@@ -817,7 +307,7 @@ class symmetry_features(A2MD_basis):
 
         :return:
         """
-        from a2mdlib.molecules import Mol2
+        from a2mdio.molecules import Mol2
         if self.__mol is not None:
             assert isinstance(self.__mol, Mol2)
             topo = self.__mol.get_bonds()

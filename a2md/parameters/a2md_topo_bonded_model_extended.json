@@ -119,8 +119,8 @@
         {
           "_NAME" : "VR",
           "_PARAMS" : {
-            "A3": 3.737,
-            "B3": 2.453
+            "A": 3.737,
+            "B": 2.453
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
@@ -203,6 +203,82 @@
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO"
         }
-      ]
+      ],
+    "S": [
+        {
+          "_NAME" : "C1R",
+          "_PARAMS" : {
+            "A": 2559.082,
+            "B": 34.86945
+          },
+          "_FROZEN" : true,
+          "_COEFFICIENT" : 1.0,
+          "_CONNECT" : "_NONE"
+        },
+        {
+          "_NAME" : "C2R",
+          "_PARAMS" : {
+            "A": 151.9583,
+            "B": 5.780166
+          },
+          "_FROZEN" : true,
+          "_COEFFICIENT" : 1.0,
+          "_CONNECT" : "_NONE"
+        },
+            {
+          "_NAME" : "CVR",
+          "_PARAMS" : {
+            "A": -53.47400,
+            "B": 4.277687
+          },
+          "_FROZEN" : true,
+          "_COEFFICIENT" : 1.0,
+          "_CONNECT" : "_NONE"
+        },
+        {
+          "_NAME" : "VR",
+          "_PARAMS" : {
+            "A": 4.200515,
+            "B": 2.071517
+          },
+          "_FROZEN" : false,
+          "_COEFFICIENT" : 1.0,
+          "_CONNECT" : "_NONE"
+        },
+        {
+          "_NAME" : "B01",
+          "_PARAMS" : {
+            "A": 4.200515,
+            "B": 2.071517,
+            "alpha": 3.5
+          },
+          "_FROZEN" : false,
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO"
+        },
+        {
+          "_NAME" : "B02",
+          "_PARAMS" : {
+            "A": 4.200515,
+            "B": 2.071517,
+            "alpha": 1.75
+          },
+          "_FROZEN" : false,
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO"
+        },
+        {
+          "_NAME" : "B0X",
+          "_PARAMS" : {
+            "A": 4.200515,
+            "B": 2.5,
+            "alpha": 0.3,
+            "P": 2
+          },
+          "_FROZEN" : false,
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO"
+        }
+    ]
   }
 }

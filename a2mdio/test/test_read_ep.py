@@ -1,4 +1,4 @@
-from a2mdlib.qm import GaussianLog
+from a2mdio.qm import GaussianLog
 
 gl = GaussianLog(
     file='test_08.g09', verbose=True

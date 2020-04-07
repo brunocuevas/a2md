@@ -1,6 +1,6 @@
 import numpy as np
 import re
-from a2mdlib.volumes import Volume
+from a2mdio.volumes import Volume
 
 class A2MDlibQM:
     def __init__(self, name, verbose):
@@ -59,52 +59,27 @@ def parse_fortran_scientific(fortran_number):
     return float(c_number)
 
 
-def set_nearest_atom(points, coordinates):
-    """
-    This function takes a set of sampling points and the coordinates of an
-    object, creates a distance matrix, and then it takes the shortest distance
-    for each point from each atom
-
-    :param points: set of sampling points
-    :type points: np.ndarray
-    :param coordinates: coordinates of the nuclei of a molecule
-    :type coordinates: np.ndarray
-    :return: vector of shortest distances
-    :rtype: np.ndarray
-    """
-    n_points = points.shape[0]
-    n_coords = coordinates.shape[0]
-    d = np.zeros((n_points, n_coords))
-    for i in range(n_coords):
-        d[:, i] = np.sqrt(
-            ((points[:, 0] - coordinates[i, 0])**2) +
-            ((points[:, 1] - coordinates[i, 1])**2) +
-            ((points[:, 2] - coordinates[i, 2])**2)
-        )
-    return d.min(axis=1)
-
-
-class Wavefunction(A2MDlibQM):
+class WaveFunction(A2MDlibQM):
     def __init__(self, verbose=True, file=None, batch_size=1000, prefetch_dm=True):
         A2MDlibQM.__init__(self, verbose=verbose, name='wavefunction handler')
+
         self.__file = file
-        self.__coeff = None
-        self.__occ = None
-        self.__exp = None
-        self.__sym = None
-        self.__cent = None
-        self.__coord = None
-        self.__types = None
-        self.__charges = None
-        self.__n_prim = None
-        self.__n_orb = None
-        self.__n_nuc = None
-        self.__D = None
-        self.__batch_size = batch_size
-        if file is not None:
-            self.read()
+        coeff, occ, exponents, syms, centers, coords, types, charges, primitives, molecular_orbitals, nuclei = self.read()
+        self.coeff = coeff
+        self.occ = occ
+        self.exp = exponents
+        self.sym = syms
+        self.cent = centers
+        self.coords = coords
+        self.types = types
+        self.charges = charges
+        self.nprims = primitives
+        self.norbs = molecular_orbitals
+        self.ncenters = nuclei
+        self.density_matrix = None
+        self.batchsize = batch_size
         if prefetch_dm:
-            self.calculate_density_matrix()
+            self.density_matrix= self.calculate_density_matrix()
 
     @staticmethod
     def __gaussian(r, s, exp):
@@ -281,7 +256,7 @@ class Wavefunction(A2MDlibQM):
 
     # PUBLIC METHODS
 
-    def calculate_density(self, coordinates):
+    def eval(self, coordinates):
         """
 
         Performs a calculation of electron density for the given coordinates by applying:
@@ -296,104 +271,42 @@ class Wavefunction(A2MDlibQM):
         :return: electron density
         :rtype: np.ndarray
         """
-        if self.__D is None:
+        if self.density_matrix is None:
             raise IOError("density matrix has not been set")
-        else:
-            rho = np.zeros(coordinates.shape[0])
-            batch_size = self.__batch_size
-            n_batches = int(coordinates.shape[0]/batch_size)
-            b = 0
-            for b in range(n_batches):
-                x = np.zeros((self.__n_prim, batch_size))
-                for p in range(self.__n_prim):
-                    cntr = self.__coord[self.__cent[p], :]
-                    d = coordinates[b*batch_size:(b+1)*batch_size, :] - cntr
-                    x[p, :] = self.__gaussian(
-                        d,
-                        symetry_index[self.__sym[p], :],
-                        self.__exp[p]
-                    )
-                for p in range(self.__n_prim):
-                    for q in range(self.__n_prim):
-                        rho[b*batch_size:(b+1)*batch_size] += self.__D[p, q] * x[p, :] * x[q, :]
 
-            if coordinates.shape[0] % batch_size != 0:
-                x = np.zeros((self.__n_prim, coordinates.shape[0] % batch_size))
-                for p in range(self.__n_prim):
-                    cntr = self.__coord[self.__cent[p], :]
-                    d = coordinates[b*batch_size:, :] - cntr
-                    x[p, :] = self.__gaussian(
-                        d,
-                        symetry_index[self.__sym[p], :],
-                        self.__exp[p]
-                    )
-                for p in range(self.__n_prim):
-                    for q in range(self.__n_prim):
-                        rho[b*batch_size:] += self.__D[p, q] * x[p, :] * x[q, :]
-            return rho
-
-    def calculate_density_by_atom(self, coordinates, center_i):
-        """
-
-        Performs a calculation of the density by only multiplying basis functions belonging
-        only to the specific center
-
-        :param coordinates:
-        :type coordinates: np.ndarray
-        :param center_i:
-        :type center_i: int
-        :return:
-        """
-        selected_centers = [i for i in range(len(self.__cent)) if self.__cent[i] == center_i]
-        cntr = self.__coord[self.__cent[selected_centers[0]], :]
-        n_sel = len(selected_centers)
-        d = coordinates - cntr
         rho = np.zeros(coordinates.shape[0])
+        batch_size = self.batchsize
+        n_batches = int(coordinates.shape[0]/batch_size)
+        b = 0
+        for b in range(n_batches):
+            x = np.zeros((self.nprims, batch_size))
+            for p in range(self.nprims):
+                cntr = self.coords[self.cent[p], :]
+                d = coordinates[b*batch_size:(b+1)*batch_size, :] - cntr
+                x[p, :] = self.__gaussian(
+                    d,
+                    symetry_index[self.sym[p], :],
+                    self.exp[p]
+                )
+            for p in range(self.nprims):
+                for q in range(self.nprims):
+                    rho[b*batch_size:(b+1)*batch_size] += self.density_matrix[p, q] * x[p, :] * x[q, :]
 
-        x = np.zeros((len(selected_centers), coordinates.shape[0]))
-        for i, p in zip(range(n_sel), selected_centers):
-            trm = self.__sym[p]
-            x[i, :] = self.__gaussian(d, symetry_index[trm, :], self.__exp[p])
-        for i, p in zip(range(n_sel), selected_centers):
-            for j, q in zip(range(n_sel), selected_centers):
-                rho += self.__D[p, q]*x[i, :]*x[j, :]
+        if coordinates.shape[0] % batch_size != 0:
+            x = np.zeros((self.nprims, coordinates.shape[0] % batch_size))
+            for p in range(self.nprims):
+                cntr = self.coords[self.cent[p], :]
+                d = coordinates[b*batch_size:, :] - cntr
+                x[p, :] = self.__gaussian(
+                    d,
+                    symetry_index[self.sym[p], :],
+                    self.exp[p]
+                )
+            for p in range(self.nprims):
+                for q in range(self.nprims):
+                    rho[b*batch_size:] += self.density_matrix[p, q] * x[p, :] * x[q, :]
         return rho
 
-    def calculate_density_by_pairs(self, coordinates, center_i, center_j):
-        """
-
-        Performs a calculation of the density by only multiplying basis functions belonging
-        to the centers i and j.
-
-        :param coordinates:
-        :type coordinates: np.ndarray
-        :param center_i:
-        :type center_i: int
-        :param center_j:
-        :type center_j: int
-        :return:
-        """
-        selected_centers_i = [i for i in range(len(self.__cent)) if self.__cent[i] == center_i]
-        selected_centers_j = [i for i in range(len(self.__cent)) if self.__cent[i] == center_j]
-        coordinates_ori_i = self.__coord[center_i]
-        coordinates_ori_j = self.__coord[center_j]
-
-        di = coordinates - coordinates_ori_i
-        dj = coordinates - coordinates_ori_j
-        rho = np.zeros(coordinates.shape[0])
-        x = np.zeros((len(selected_centers_i), coordinates.shape[0]))
-        y = np.zeros((len(selected_centers_j), coordinates.shape[0]))
-
-        for i, p in enumerate(selected_centers_i):
-            trm = self.__sym[p]
-            x[i, :] = self.__gaussian(di, symetry_index[trm, :], self.__exp[p])
-        for j, q in enumerate(selected_centers_j):
-            trm = self.__sym[q]
-            y[j, :] = self.__gaussian(dj, symetry_index[trm, :], self.__exp[q])
-        for i, p in enumerate(selected_centers_i):
-            for j, q in enumerate(selected_centers_j):
-                rho += self.__D[p, q]*x[i, :]*y[j, :]
-        return rho
 
     def calculate_density_matrix(self):
         """
@@ -402,11 +315,11 @@ class Wavefunction(A2MDlibQM):
 
         :return:
         """
-        dm = np.zeros((self.__n_prim, self.__n_prim))
-        for i in range(self.__n_orb):
-            for p in range(self.__n_prim):
-                dm[p, :] += self.__occ[i]*self.__coeff[i, p]*self.__coeff[i, :]
-        self.__D = dm
+        dm = np.zeros((self.nprims, self.nprims))
+        for i in range(self.norbs):
+            for p in range(self.nprims):
+                dm[p, :] += self.occ[i] * self.coeff[i, p] * self.coeff[i, :]
+        return dm
 
     def get_atom_labels(self):
         """
@@ -416,7 +329,7 @@ class Wavefunction(A2MDlibQM):
         :return: list of atomic labels
         :rtype: list
         """
-        atom_labels = [atom_names[int(i) - 1] for i in self.__charges]
+        atom_labels = [atom_names[int(i) - 1] for i in self.charges]
         return atom_labels
 
     def get_atomic_numbers(self):
@@ -427,7 +340,7 @@ class Wavefunction(A2MDlibQM):
         :return: atomic numbers
         :rtype: np.ndarray
         """
-        return np.array([int(i) for i in self.__charges])
+        return np.array([int(i) for i in self.charges])
 
     def get_coordinates(self):
         """
@@ -439,7 +352,7 @@ class Wavefunction(A2MDlibQM):
         :return:
         """
         self.log("default units are AU")
-        return self.__coord.copy()
+        return self.coords.copy()
 
     def get_number_molecular_orbitals(self):
         """
@@ -448,7 +361,7 @@ class Wavefunction(A2MDlibQM):
 
         :return: number of molecular orbitals
         """
-        return self.__n_orb
+        return self.norbs
 
     def get_number_primitives(self):
         """
@@ -457,7 +370,7 @@ class Wavefunction(A2MDlibQM):
 
         :return: number of primitive functions
         """
-        return self.__n_prim
+        return self.nprims
 
     def read(self):
         """
@@ -478,27 +391,62 @@ class Wavefunction(A2MDlibQM):
             exponents, wfn = self.__parse_exponents(wfn, head['primitives'])
             coeff, occ = self.__parse_orbitals(wfn, head['primitives'], head['molecular_orbitals'])
 
-            self.__coeff = coeff
-            self.__occ = occ
-            self.__exp = exponents
-            self.__sym = syms
-            self.__cent = centers
-            self.__coord = coords
-            self.__types = types
-            self.__charges = charges
-            self.__n_prim = head['primitives']
-            self.__n_orb = head['molecular_orbitals']
-            self.__n_nuc = head['nuclei']
+            return [
+                coeff, occ, exponents, syms, centers, coords, types, charges, head['primitives'],
+                head['molecular_orbitals'], head['nuclei']
+            ]
 
-    def set_file(self, file):
-        """
 
-        Allows to change the file
+class WaveFunctionGPU(WaveFunction):
+    def __init__(self, file, dtype, device='cuda:0'):
+        import torch
+        self.torch = torch
+        self.device = torch.device(device)
+        self.dtype = dtype
+        WaveFunction.__init__(self, file=file, verbose=True, batch_size=100000, prefetch_dm=True)
+        self.density_matrix = self.calculate_density_matrix()
+        self.coords = torch.tensor(self.coords, dtype=dtype, device=self.device)
 
-        :param file:
-        :return:
-        """
-        self.__file = file
+
+    def convert_symmetry_to_tensor(self, sym, dims):
+
+        sym_tensor = self.torch.tensor(symetry_index[sym], dtype=self.dtype, device=self.device)
+        sym_tensor = sym_tensor.repeat(dims).reshape(dims, 3)
+        return sym_tensor
+
+    def basis_function(self, x, i):
+
+        center = self.cent[i]
+        coords = self.coords[center, :]
+        sym_vector = symetry_index[self.sym[i], :]
+        exp = self.exp[i]
+        rv = (x - coords)
+        r = rv.pow(2.0).sum(1)
+        g = self.torch.exp(-exp * r)
+        l = rv[:,0].pow(sym_vector[0]) * rv[:,1].pow(sym_vector[1]) * rv[:,2].pow(sym_vector[2])
+        return g * l
+
+    def distance_vector(self, x, i):
+        dims = x.size(0)
+        coords = self.coords[i, :].repeat(dims).reshape(dims, 3)
+        rv = (x - coords)
+        r = rv.pow(2.0).sum(1)
+        return rv, r
+
+
+    def eval(self, x):
+        p = self.torch.zeros(x.size(0), device=self.device, dtype=self.dtype)
+        buffer = self.torch.zeros(self.nprims, x.size(0), dtype=self.dtype, device=self.device)
+
+        for i in range(self.nprims):
+            buffer[i, :] = self.basis_function(x, i)
+
+        for i in range(self.nprims):
+
+            for j in range(self.nprims):
+
+                p += self.density_matrix[i, j] * buffer[i, :] * buffer[j, :]
+        return p
 
 
 class ElectronDensity(Volume):

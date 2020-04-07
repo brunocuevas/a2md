@@ -15,15 +15,8 @@ def open_file(name):
 
 LIBRARY_PATH = os.path.dirname(os.path.abspath(__file__))
 PARAMETERS_PATH = LIBRARY_PATH + '/parameters/'
-AMD_PARAMS_18_FILE= PARAMETERS_PATH + 'amd_params_18'
-AMD_PARAMS_19_FILE= PARAMETERS_PATH + 'amd_params_19'
-RADIUS_FILE = PARAMETERS_PATH + 'radius.json'
-BOND_FILE = PARAMETERS_PATH + 'bond_types.json'
 
-
-AMD_PARAMS_18 = open_file(AMD_PARAMS_18_FILE)
-AMD_PARAMS_19 = open_file(AMD_PARAMS_19_FILE)
-RADIUS = open_file(RADIUS_FILE)
-BOND_TYPES = open_file(BOND_FILE)
+TOPO_RESTRICTED_FILE = PARAMETERS_PATH + "a2md_topo_bonded_model.json"
+TOPO_RESTRICTED_PARAMS = open_file(TOPO_RESTRICTED_FILE)
 with open(LIBRARY_PATH + '/parameters/symmetry_params.json') as f:
     SYMMETRY_PARAMETERS = json.load(f)

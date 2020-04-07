@@ -1,6 +1,6 @@
 import numpy as np
 from a2mdnet import MAX_NUMBER_EVAL_POINTS, ELEMENT2NN
-from a2mdlib.molecules import Mol2
+from a2mdio.molecules import Mol2
 from torch.utils import data
 import torch
 import json
