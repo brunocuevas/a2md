@@ -1,10 +1,11 @@
 import torch
+import numpy as np
 from torch import nn
 from a2mdnet.data import convert_label2tensor
-from a2mdt.functions import distance, distance_vectors, angle
-from a2mdt.functions import gaussian_kernel, exponential_kernel, xexponential_kernel
-from a2mdt.functions import select_distances, select_labels
-from a2mdt.functions import expand_parameter
+from a2mdnet.a2mdt.functions import distance, distance_vectors, angle
+from a2mdnet.a2mdt.functions import gaussian_kernel, exponential_kernel, xexponential_kernel
+from a2mdnet.a2mdt.functions import select_distances, select_labels
+from a2mdnet.a2mdt.functions import expand_parameter
 from a2md.utils import element2an
 from a2mdio.molecules import UNITS_TABLE
 
@@ -147,7 +148,7 @@ class A2MDtAniso(A2MDtFun):
         )
 
 
-FUNCTION_DICT = dict(
+OLD_FUNCTION_DICT = dict(
     AG01=A2MDtAniso,
     AG02=A2MDtAniso,
     ORC=A2MDtIso,
@@ -156,62 +157,57 @@ FUNCTION_DICT = dict(
     OR=A2MDtIso
 )
 
+FUNCTION_DICT = dict(
+    B01=A2MDtAniso,
+    B02=A2MDtAniso,
+    CR=A2MDtIso,
+    CVR=A2MDtIso,
+    VR=A2MDtIso,
+    hVR=A2MDtIso
+)
+
 class A2MDt:
 
-    def __init__(self, params, device, iso_order, aniso_order):
-
+    def __init__(self, params, device):
+        model_info = params['_FEATURES']
         model = params['_MODEL']
         functions_dict = dict()
+        functions_pos = dict()
+
         self.functions = []
+        self.positions = []
         self.device = device
         frozen_dict = dict()
         for elem, elem_list in model.items():
 
             for fun in elem_list:
-
-                if fun['_CONNECT'] == '_TOPO':
-
-                    psi = fun['_PARAMS']['Psi']
-                    name = fun['_NAME'] + '{:02d}'.format(psi + 1)
-
-                else:
-
-                    name = fun['_NAME']
+                name = fun['_NAME']
 
                 frozen_dict[name] = fun['_FROZEN']
                 if name in functions_dict.keys():
                     functions_dict[name][elem] = convert_params(fun['_PARAMS'])
+                    functions_pos[name].append(fun['_TENSOR_POS'])
                 else:
                     functions_dict[name] = dict()
                     functions_dict[name][elem] = convert_params(fun['_PARAMS'])
+                    functions_pos[name] = [fun['_TENSOR_POS']]
 
-        for fun_key in iso_order:
-
-            fun_mapped = FUNCTION_DICT[fun_key]
-            fun = functions_dict[fun_key]
-
-            self.functions.append(
-                fun_mapped(
-                    elements=list(fun.keys()),
-                    params=fun,
-                    device=device,
-                    frozen=frozen_dict[fun_key]
-                )
-            )
-
-        for fun_key in aniso_order:
+        for fun_key, pos in functions_pos.items():
 
             fun_mapped = FUNCTION_DICT[fun_key]
             fun = functions_dict[fun_key]
+            try:
+                pos = int(np.unique(pos))
+            except TypeError:
+                pos = None
             self.functions.append(
                 fun_mapped(
                     elements=list(fun.keys()),
-                    params=fun,
-                    device=device,
+                    params=fun, device=device,
                     frozen=frozen_dict[fun_key]
-
                 )
             )
+            self.positions.append(pos)
 
     def forward_core(self, l, r, x):
 
@@ -255,10 +251,9 @@ class A2MDt:
         p = torch.zeros(
             (x.size(0), x.size(1)), dtype=torch.float, device=self.device
         )
-        i_iso = 0
-        i_aniso = 0
 
-        for fun in self.functions:
+
+        for fun, pos in zip(self.functions, self.positions):
 
             if fun.frozen:
                 if type(fun) is A2MDtIso:
@@ -269,14 +264,14 @@ class A2MDt:
 
             if type(fun) is A2MDtIso:
 
-                c_i_ = c_i[i_iso].transpose(1, 2)
+                c_i_ = c_i[pos].transpose(1, 2)
                 p += (c_i_ * fun.forward(l, d)).sum(2)
-                i_iso += 1
+
 
             elif type(fun) is A2MDtAniso:
 
-                c_a_forward = c_a_f[i_aniso].transpose(1, 2)
-                c_a_reverse = c_a_b[i_aniso].transpose(1, 2)
+                c_a_forward = c_a_f[pos].transpose(1, 2)
+                c_a_reverse = c_a_b[pos].transpose(1, 2)
 
                 d_selected_forward, d_selected_reverse = select_distances(
                     d, t, device=self.device
@@ -291,7 +286,7 @@ class A2MDt:
                 p += (c_a_reverse * fun.forward(
                     l_selected_backwards, d_selected_reverse, z2)
                       ).sum(2)
-                i_aniso += 1
+
 
         return p
 
@@ -305,7 +300,6 @@ class A2MDt:
         :return:
         """
         from a2mdio.qm import ElectronDensity
-        import numpy as np
         l, t, r, c_i, c_a = mol
         extend = extend * UNITS_TABLE['au']['angstrom']
         resolution = resolution * UNITS_TABLE['au']['angstrom']

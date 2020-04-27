@@ -49,10 +49,10 @@ class QmSetUp(A2MDlib):
         assert issubclass(type(mol), MolRepresentation)
         try:
             coordinates = mol.get_coordinates()
-            labels = mol.get_symbols(),
-            size = mol.get_number_atoms(),
-            total_charge = mol.get_total_charge(),
-            units = mol.get_units(),
+            labels = mol.get_symbols()
+            size = mol.get_number_atoms()
+            total_charge = mol.get_total_charge()
+            units = mol.get_units()
             multiplicity = mol.get_multiplicity()
         except AttributeError:
             raise IOError("some of the requested fields was missing")
@@ -63,7 +63,7 @@ class QmSetUp(A2MDlib):
         size, total_charge, units, multiplicity, coordinates, labels = self.get_mol_info(mol)
         size: int
 
-        file = os.path.basename(file)
+        file_basename = os.path.basename(file)
         if self.calculation_type not in ['opt', 'single']:
             raise NotImplementedError("use opt/single as calculation types")
 
@@ -92,7 +92,7 @@ class QmSetUp(A2MDlib):
         else:
             g09_command_line = g09_command_line + '\n\n'
 
-        g09_run_name_line = '{:s}\n\n'.format(file)
+        g09_run_name_line = '{:s}\n\n'.format(file_basename)
         g09_mult_and_charge_line = '{:d},{:d}\n'.format(total_charge, multiplicity)
 
         g09_coords_matrix = []
@@ -102,7 +102,7 @@ class QmSetUp(A2MDlib):
             )
         g09_coords_str = '\n'.join(g09_coords_matrix) + '\n'
         if self.output is not None:
-            g09_output_line = '{:s}\n'.format(self.output)
+            g09_output_line = '\n{:s}\n'.format(self.output)
         else:
             g09_output_line = ''
 
@@ -112,6 +112,9 @@ class QmSetUp(A2MDlib):
                 g09_coords_str, g09_output_line
             ]
         )
+
+        with open(file, 'w') as f:
+            f.write(g09_str)
 
         return g09_str
         
@@ -172,6 +175,7 @@ class MolRepresentation(A2MDlib):
         self.atom_names = atom_names
         self.bonds = bonds
         self.bond_types = bond_types
+        self.multiplicity = 1
 
     def get_bonds(self):
         return self.bonds
@@ -227,6 +231,11 @@ class MolRepresentation(A2MDlib):
             self.log("review charges; their sum is not accurate integer")
         return total_charge
 
+    def get_multiplicity(self):
+        return self.multiplicity
+
+    def get_units(self):
+        return self.units
 
 class Mol2(MolRepresentation):
     def __init__(self, file=None):
@@ -236,7 +245,7 @@ class Mol2(MolRepresentation):
         """
 
         coordinates, atomic_numbers, bonds, charges, natoms, nbonds, \
-        atom_types, atom_names, bond_types, segments = self.__read(fn=file)
+        atom_types, atom_names, bond_types, segments, segment_idx = self.__read(fn=file)
 
         MolRepresentation.__init__(
             self,
@@ -249,6 +258,7 @@ class Mol2(MolRepresentation):
         )
         self.file = file
         self.segments = segments
+        self.segment_idx = segment_idx
 
     @staticmethod
     def __read(fn):
@@ -276,6 +286,8 @@ class Mol2(MolRepresentation):
         bonds = np.zeros((number_bonds, 2), dtype='int32')
         bond_type = [''] * number_bonds
         atom_segments = [''] * number_atoms
+        atom_segments_idx = [0] * number_atoms
+        segment_idx = 0
 
         for line in atom.split('\n'):
             try:
@@ -286,12 +298,24 @@ class Mol2(MolRepresentation):
                 segment = split_line[7]
             except ValueError:
                 continue
+
             atom_id = int(atom_id)
             coordinate_matrix[atom_id - 1, :] = float(x), float(y), float(z)
             atom_names[atom_id - 1] = label
             atom_charges[atom_id - 1] = charge
             atom_types[atom_id - 1] = tripos_type
+
+            try:
+                segment_flag = segment == last_atom_segment
+            except NameError:
+                last_atom_segment = segment
+                segment_flag = segment == last_atom_segment
+
+            if not segment_flag:
+                segment_idx += 1
+                last_atom_segment = segment
             atom_segments[atom_id - 1] = segment
+            atom_segments_idx[atom_id - 1] = segment_idx
 
         # PARSING BONDING PART
 
@@ -308,7 +332,7 @@ class Mol2(MolRepresentation):
         atomic_numbers = np.array([ATOMIC_NUMBERS[i] for i in element_names], dtype='int32')
 
         return coordinate_matrix, atomic_numbers, bonds, atom_charges, number_atoms, number_bonds, \
-            atom_types, atom_names, bond_type, atom_segments
+            atom_types, atom_names, bond_type, atom_segments, atom_segments_idx
 
     def write(self, file):
         """
@@ -347,6 +371,7 @@ class Mol2(MolRepresentation):
 
         return '\n'.join(mol2_contents_list)
 
+
 class PDBLine:
     def __init__(self, line):
         self.atom_name = line[12:16].strip()
@@ -361,6 +386,7 @@ class PDBLine:
         self.atom_occupancy = float(line[54:60])
         self.atom_bfactor = float(line[60:66])
         self.charge = line[78:80].strip()
+
 
 class PQRLine:
     def __init__(self, line):
@@ -399,6 +425,7 @@ class PDB(MolRepresentation):
             atom_names=atom_names,
             bonds=topo, bond_types=None
         )
+        self.atom_idx = atom_idx
         self.atom_residues_idx = atom_residues_idx
         self.residue_idx = residues_idx
         self.residue_names = residues_names
@@ -406,7 +433,7 @@ class PDB(MolRepresentation):
         self.residue_chains = residues_chains
         self.residue_extent = residues_extent
         self.chain_names = chain_names
-
+        self.anotation = dict()
         self.sequence = self.make_sequences(self.residue_names, self.residue_chains)
 
 
@@ -439,7 +466,6 @@ class PDB(MolRepresentation):
         chain_names = []
         # ITERATION
         _residue_start_ = 0
-        _residue_end_ = None
         current_chain = ''
         current_residue = 0
         for i, line in enumerate(atom_lines):
@@ -462,9 +488,9 @@ class PDB(MolRepresentation):
             atom_chains.append(line.atom_chain)
 
             if line.atom_residue_idx != current_residue:
-                _residue_end_ = (i - 1)
+                _residue_end_ = i
 
-                if i > 0:
+                if i > 1:
                     residues_extent.append((_residue_start_, _residue_end_))
                     topo = topo + self.set_residue_topology(
                         resname=residues_names[-1],
@@ -534,6 +560,38 @@ class PDB(MolRepresentation):
         topology_buffer.append([atom_idx_1[c_idx], atom_idx_2[n_idx]])
         return topology_buffer
 
+    @staticmethod
+    def join_ss_bonds(names_1, atom_idx_1, names_2, atom_idx_2):
+        topology_buffer = []
+        try:
+            ss1_idx = names_1.index("SG")
+        except ValueError:
+            raise  RuntimeError("could not find a sulphur group within selection")
+        try:
+            ss2_idx = names_2.index("SG")
+        except ValueError:
+            raise  RuntimeError("could not find a sulphur group within selection")
+        topology_buffer.append([atom_idx_1[ss1_idx], atom_idx_2[ss2_idx]])
+        return topology_buffer
+
+    def add_ss_bonds(self):
+        try:
+            ssbonds = self.anotation['ssbonds']
+        except KeyError:
+            raise IOError("there are not defined ssbonds in the anotation")
+        for i, (ss1, ss2) in enumerate(ssbonds):
+            ss1_idx = self.residue_idx.index(ss1)
+            ss2_idx = self.residue_idx.index(ss2)
+            ss1_start, ss1_end = self.residue_extent[ss1_idx]
+            ss2_start, ss2_end = self.residue_extent[ss2_idx]
+            ssbond_topo = self.join_ss_bonds(
+                names_1=self.atom_names[ss1_start:ss1_end],
+                names_2=self.atom_names[ss2_start:ss2_end],
+                atom_idx_1=self.atom_idx[ss1_start:ss1_end],
+                atom_idx_2=self.atom_idx[ss2_start:ss2_end]
+            )
+            self.bonds = self.bonds + ssbond_topo
+
     def assign_partial_charges(self, atom_type, resname):
         if atom_type in self.residue_charge_type_source[resname].keys():
             return self.residue_charge_type_source[resname][atom_type]
@@ -555,3 +613,27 @@ class PDB(MolRepresentation):
                 chain_sequences[chain] = chain_sequences[chain] + self.residue_charge_source[res]['symbol']
 
         return chain_sequences
+
+    def read_anotation(self, file=None, dictionary=None):
+        """
+        PDB read anotation
+        ---
+        tries to solve the lack of annotations in PQR file by reading a custom dictionary in json format
+        :param file:
+        :param dictionary:
+        :return:
+        """
+        import json
+        if file is None and dictionary is None:
+            raise IOError("lacking input")
+        if file is None:
+            anotation = dictionary
+        else:
+            with open(file) as f:
+                anotation = json.load(f)
+
+        if 'ssbonds' in anotation.keys():
+
+            self.anotation['ssbonds'] = []
+            for ss1, ss2 in anotation['ssbonds']:
+                self.anotation['ssbonds'].append([ss1, ss2])

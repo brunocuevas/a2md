@@ -1,7 +1,7 @@
 from a2mdnet import modules
 # from a2mdnet.functions import APEV
-from a2mdt.modules import A2MDt
-from a2mdt import A2MD_MODEL
+from a2mdnet.a2mdt.modules import A2MDt
+from a2mdnet.a2mdt import A2MD_MODEL
 import json
 import torch
 import torch.nn as nn
@@ -25,13 +25,11 @@ BETAS = (0.9, 0.999)
 WEIGHT_DECAY = 1e-2
 
 
-
-
 class DensityCoupled(nn.Module):
 
     def __init__(self, architecture, device):
-        from a2mdt.modules import A2MDt
-        from a2mdt import A2MD_MODEL
+        from a2mdnet.a2mdt.modules import A2MDt
+        from a2mdnet.a2mdt import A2MD_MODEL
         super(DensityCoupled, self).__init__()
 
         self.device = device
@@ -42,8 +40,6 @@ class DensityCoupled(nn.Module):
             bond_net_architecture = architecture['bond_net']
             feature_extraction_layer = architecture['fe_layer']
             feature_extraction_net = architecture['fe_net']
-            density_function_iso_order = architecture['iso_order']
-            density_function_aniso_order = architecture['aniso_order']
             coefficients_distribution = architecture['coefficients_distribution']
 
         except KeyError:
@@ -77,8 +73,7 @@ class DensityCoupled(nn.Module):
 
         self.density_model = A2MDt(
             params=A2MD_MODEL,
-            device=self.device,
-            iso_order=density_function_iso_order, aniso_order=density_function_aniso_order
+            device=self.device
         )
 
     @staticmethod
@@ -209,7 +204,7 @@ class DensityCoupled(nn.Module):
 class MultTaskDensityCoupled(nn.Module):
 
     def __init__(self, architecture, device):
-        from a2mdt.modules import A2MDt
+        from a2mdnet.a2mdt.modules import A2MDt
         super(MultTaskDensityCoupled, self).__init__()
 
         self.device = device
@@ -264,8 +259,7 @@ class MultTaskDensityCoupled(nn.Module):
         self.normalizer = modules.QPChargeNormalization(device=self.device)
         self.density_model = A2MDt(
             params=A2MD_MODEL,
-            device=self.device,
-            iso_order=density_function_iso_order, aniso_order=density_function_aniso_order
+            device=self.device
         )
 
     @staticmethod

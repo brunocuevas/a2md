@@ -7,200 +7,208 @@
     "C" :
       [
         {
-          "_NAME" : "CR",
+          "_NAME" : "ORC",
           "_PARAMS" : {
-            "A": 128.049,
-            "B": 11.850
+            "A3": 128.049,
+            "B3": 11.850
           },
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "CVR",
+          "_NAME" : "ORCV",
           "_PARAMS" : {
-            "A": -2.535,
-            "B": 3.508
+            "A3": -2.535,
+            "B3": 3.508
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "VR",
+          "_NAME" : "ORV",
           "_PARAMS" : {
-            "A": 2.041,
-            "B": 2.099
+            "A3": 2.041,
+            "B3": 2.099
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "B01",
+          "_NAME" : "AG",
           "_PARAMS" : {
-            "A": 1.29,
-            "B": 2.1,
-            "alpha": 3.5
+            "U": 1.29,
+            "G": 2.1,
+            "Alpha": 3.5,
+            "Psi":0
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
+          "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_TOPO"
         },
         {
-          "_NAME" : "B02",
+          "_NAME" : "AG",
           "_PARAMS" : {
-            "A": 1.29,
-            "B": 2.1,
-            "alpha": 1.75
+            "U": 1.29,
+            "G": 2.1,
+            "Alpha": 1.75,
+            "Psi": 1
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
+          "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_TOPO"
         }
       ],
     "H" :
       [
         {
-          "_NAME" : "hVR",
+          "_NAME" : "ORCV",
           "_PARAMS" : {
-            "A": 0.62,
-            "B": 2.5
+            "A3": 0.62,
+            "B3": 2.5
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "B01",
+          "_NAME" : "AG",
           "_PARAMS" : {
-            "A": 0.92,
-            "B": 2.95,
-            "alpha": 0.6
+            "U": 0.92,
+            "G": 2.95,
+            "Alpha": 0.6,
+            "Psi": 0
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
+          "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_TOPO"
         },
         {
-          "_NAME" : "B02",
+          "_NAME" : "AG",
           "_PARAMS" : {
-            "A": 0.92,
-            "B": 2.95,
-            "alpha": 0.3
+            "U": 0.92,
+            "G": 2.95,
+            "Alpha": 0.3,
+            "Psi": 1
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
+          "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_TOPO"
         }
     ],
     "N" :
       [
         {
-          "_NAME" : "CR",
+          "_NAME" : "ORC",
           "_PARAMS" : {
-            "A": 207.763,
-            "B": 13.835
+            "A3": 207.763,
+            "B3": 13.835
           },
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "CVR",
+          "_NAME" : "ORCV",
           "_PARAMS" : {
-            "A": -5.366,
-            "B": 4.656
+            "A3": -5.366,
+            "B3": 4.656
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "VR",
+          "_NAME" : "ORV",
           "_PARAMS" : {
-            "A": 3.737,
-            "B": 2.453
+            "A3": 3.737,
+            "B3": 2.453
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "B01",
+          "_NAME" : "AG",
           "_PARAMS" : {
-            "A": 0.925,
-            "B": 2.94,
-            "alpha":3.5
+            "U": 0.925,
+            "G": 2.94,
+            "Alpha":3.5,
+            "Psi":0
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
+          "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_TOPO"
         },
         {
-          "_NAME" : "B02",
+          "_NAME" : "AG",
           "_PARAMS" : {
-            "A": 0.925,
-            "B": 2.94,
-            "alpha":1.75
+            "U": 0.925,
+            "G": 2.94,
+            "Alpha":1.75,
+            "Psi":1
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
+          "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_TOPO"
         }
       ],
     "O" :
       [
         {
-          "_NAME" : "CR",
+          "_NAME" : "ORC",
           "_PARAMS" : {
-            "A": 316.284,
-            "B": 15.835
+            "A3": 316.284,
+            "B3": 15.835
           },
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "CVR",
+          "_NAME" : "ORCV",
           "_PARAMS" : {
-            "A": -9.789,
-            "B": 6.439
+            "A3": -9.789,
+            "B3": 6.439
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "VR",
+          "_NAME" : "ORV",
           "_PARAMS" : {
-            "A": 5.479,
-            "B": 2.710
+            "A3": 5.479,
+            "B3": 2.710
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE"
         },
         {
-          "_NAME" : "B01",
+          "_NAME" : "AG",
           "_PARAMS" : {
-            "A": 0.55,
-            "B": 4.29,
-            "alpha": 3.5
+            "U": 0.55,
+            "G": 4.29,
+            "Alpha": 3.5,
+            "Psi":0
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
+          "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_TOPO"
         },
         {
-          "_NAME" : "B02",
+          "_NAME" : "AG",
           "_PARAMS" : {
-            "A": 0.55,
-            "B": 4.29,
-            "alpha": 1.74
+            "U": 0.55,
+            "G": 4.29,
+            "Alpha": 1.74,
+            "Psi": 1
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
+          "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_TOPO"
         }
       ]

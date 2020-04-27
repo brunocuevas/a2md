@@ -187,6 +187,8 @@ class SupportAngular(Support):
         self.integral_method = self.__integral_trigo
         self.eval_ep_method = self.__eval_ep_ag
         self.params_kw = ['alpha','B', 'A']
+        if 'P' in kwargs.keys():
+            self.params_kw.append('P')
         self.support_type = 'angular'
         self.anisotropic = True
 

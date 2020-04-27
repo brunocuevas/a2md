@@ -2,214 +2,228 @@
   "_NAME":"a2md-fc-topo_bonded_model",
   "_VERSION":1.0,
   "_DESCRIPTION":"Anisotropic Model of electron density including gaussian angular terms, frozen internal functions, and bonds between all atoms",
+  "_FEATURES": {
+    "_MAX_ISO_SIZE":4,
+    "_MAX_ANISO_SIZE":2
+  },
   "_MODEL":
   {
     "C" :
       [
         {
-          "_NAME" : "ORC",
+          "_NAME" : "CR",
           "_PARAMS" : {
-            "A3": 128.049,
-            "B3": 11.850
+            "A": 128.049,
+            "B": 11.850
           },
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": null
         },
         {
-          "_NAME" : "ORCV",
+          "_NAME" : "CVR",
           "_PARAMS" : {
-            "A3": -2.535,
-            "B3": 3.508
+            "A": -2.535,
+            "B": 3.508
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": 0
         },
         {
-          "_NAME" : "ORV",
+          "_NAME" : "VR",
           "_PARAMS" : {
-            "A3": 2.041,
-            "B3": 2.099
+            "A": 2.041,
+            "B": 2.099
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": 1
         },
         {
-          "_NAME" : "AG",
+          "_NAME" : "B01",
           "_PARAMS" : {
-            "U": 1.29,
-            "G": 2.1,
-            "Alpha": 3.5,
-            "Psi":0
+            "A": 1.29,
+            "B": 2.1,
+            "alpha": 3.5
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_TOPO"
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TENSOR_POS": 0
         },
         {
-          "_NAME" : "AG",
+          "_NAME" : "B02",
           "_PARAMS" : {
-            "U": 1.29,
-            "G": 2.1,
-            "Alpha": 1.75,
-            "Psi": 1
+            "A": 1.29,
+            "B": 2.1,
+            "alpha": 1.75
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_TOPO"
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TENSOR_POS": 1
         }
       ],
     "H" :
       [
         {
-          "_NAME" : "ORCV",
+          "_NAME" : "hVR",
           "_PARAMS" : {
-            "A3": 0.62,
-            "B3": 2.5
+            "A": 0.62,
+            "B": 2.5
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": 0
         },
         {
-          "_NAME" : "AG",
+          "_NAME" : "B01",
           "_PARAMS" : {
-            "U": 0.92,
-            "G": 2.95,
-            "Alpha": 0.6,
-            "Psi": 0
+            "A": 0.92,
+            "B": 2.95,
+            "alpha": 0.6
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_TOPO"
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TENSOR_POS": 0
         },
         {
-          "_NAME" : "AG",
+          "_NAME" : "B02",
           "_PARAMS" : {
-            "U": 0.92,
-            "G": 2.95,
-            "Alpha": 0.3,
-            "Psi": 1
+            "A": 0.92,
+            "B": 2.95,
+            "alpha": 0.3
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_TOPO"
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TENSOR_POS": 1
         }
     ],
     "N" :
       [
         {
-          "_NAME" : "ORC",
+          "_NAME" : "CR",
           "_PARAMS" : {
-            "A3": 207.763,
-            "B3": 13.835
+            "A": 207.763,
+            "B": 13.835
           },
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": null
         },
         {
-          "_NAME" : "ORCV",
+          "_NAME" : "CVR",
           "_PARAMS" : {
-            "A3": -5.366,
-            "B3": 4.656
+            "A": -5.366,
+            "B": 4.656
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": 0
         },
         {
-          "_NAME" : "ORV",
+          "_NAME" : "VR",
           "_PARAMS" : {
-            "A3": 3.737,
-            "B3": 2.453
+            "A": 3.737,
+            "B": 2.453
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": 1
         },
         {
-          "_NAME" : "AG",
+          "_NAME" : "B01",
           "_PARAMS" : {
-            "U": 0.925,
-            "G": 2.94,
-            "Alpha":3.5,
-            "Psi":0
+            "A": 0.925,
+            "B": 2.94,
+            "alpha":3.5
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_TOPO"
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TENSOR_POS": 0
         },
         {
-          "_NAME" : "AG",
+          "_NAME" : "B02",
           "_PARAMS" : {
-            "U": 0.925,
-            "G": 2.94,
-            "Alpha":1.75,
-            "Psi":1
+            "A": 0.925,
+            "B": 2.94,
+            "alpha":1.75
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_TOPO"
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TENSOR_POS": 1
         }
       ],
     "O" :
       [
         {
-          "_NAME" : "ORC",
+          "_NAME" : "CR",
           "_PARAMS" : {
-            "A3": 316.284,
-            "B3": 15.835
+            "A": 316.284,
+            "B": 15.835
           },
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": null
         },
         {
-          "_NAME" : "ORCV",
+          "_NAME" : "CVR",
           "_PARAMS" : {
-            "A3": -9.789,
-            "B3": 6.439
+            "A": -9.789,
+            "B": 6.439
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": 0
         },
         {
-          "_NAME" : "ORV",
+          "_NAME" : "VR",
           "_PARAMS" : {
-            "A3": 5.479,
-            "B3": 2.710
+            "A": 5.479,
+            "B": 2.710
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_NONE"
+          "_CONNECT" : "_NONE",
+          "_TENSOR_POS": 1
         },
         {
-          "_NAME" : "AG",
+          "_NAME" : "B01",
           "_PARAMS" : {
-            "U": 0.55,
-            "G": 4.29,
-            "Alpha": 3.5,
-            "Psi":0
+            "A": 0.55,
+            "B": 4.29,
+            "alpha": 3.5
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_TOPO"
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TENSOR_POS": 0
         },
         {
-          "_NAME" : "AG",
+          "_NAME" : "B02",
           "_PARAMS" : {
-            "U": 0.55,
-            "G": 4.29,
-            "Alpha": 1.74,
-            "Psi": 1
+            "A": 0.55,
+            "B": 4.29,
+            "alpha": 1.74
           },
           "_FROZEN" : false,
-          "_COEFFICIENT" : 1.0,
-          "_CONNECT" : "_TOPO"
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TENSOR_POS": 1
         }
       ]
   }

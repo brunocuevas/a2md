@@ -78,7 +78,7 @@
     "aca": {
         "pdb": "ACA_000000.pdb",
         "path": "ACA",
-        "mol2": "ACA_000000.mol2",
+        "mol2": "ACA_000000_upd.mol2",
         "out": "ACA.g09.output",
         "surfaces":{
             "ACA_s1.csv": 1.50,
@@ -88,6 +88,14 @@
             "ACA_s5.csv": 0.01,
             "ACA_s6.csv": 0.001
         },
+        "wfn":""
+    },
+    "prup3": {
+        "pdb": "2alg_b.pdb",
+        "path": "prup3",
+        "mol2":"",
+        "out":"",
+        "surfaces":{},
         "wfn":""
     }
 }

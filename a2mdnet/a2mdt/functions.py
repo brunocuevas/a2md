@@ -191,7 +191,7 @@ def angle(dv, v, sample_coords, mol_coords, connectivity, device):
         term2 = mol_coords[i, :, :].index_select(0, connectivity_masked_i2)
         # distance vectors
         du = term2 - term1
-        u = du.pow(2.0).sum(1).add(1e-12).sqrt()
+        u = du.pow(2.0).sum(1).add(1e-18).sqrt()
         du = du.unsqueeze(0)
         u = u.unsqueeze(0)
         # selecting the pertinent distance vectors
@@ -199,7 +199,7 @@ def angle(dv, v, sample_coords, mol_coords, connectivity, device):
         sv = v[i, :, :].index_select(1, connectivity_masked_i1)
         # use of the scalar product to obtain the angle
         dusdv = (du * sdv).sum(2)
-        usv = (u * sv).add(1e-4)
+        usv = (u * sv)
         expanded_mask = mask.unsqueeze(0).expand(m_sample, m_con)
         ratio = dusdv/usv
         ratio[ratio< -1.0] = -1.0
@@ -244,19 +244,19 @@ def exponential_kernel(d, a, b):
     buffer = a_usq * buffer
     return buffer
 
-def xexponential_kernel(d, u, g):
+def xexponential_kernel(d, a, b):
     """
 
     Applies u*d*exp(-g*d)
 
     :param d:
-    :param u:
-    :param g:
+    :param a:
+    :param b:
     :return:
     """
 
-    buffer =  torch.exp(-d * g.unsqueeze(1))
-    buffer = u.unsqueeze(1) * buffer * d
+    buffer =  torch.exp(-d * b.unsqueeze(1))
+    buffer = a.unsqueeze(1) * buffer * d
     return buffer
 
 def gaussian_kernel(z, alpha):

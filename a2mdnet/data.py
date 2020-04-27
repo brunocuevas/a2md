@@ -1,23 +1,47 @@
 import numpy as np
-from a2mdnet import MAX_NUMBER_EVAL_POINTS, ELEMENT2NN
+from a2mdnet import ELEMENT2NN
 from a2mdio.molecules import Mol2
+from a2md.utils import integrate_from_dict
+from a2mdnet import FUNCTION_NAMES2POSITION
 from torch.utils import data
 import torch
 import json
 import warnings
 
-# import rdkit.Chem.AllChem as Chem
-
-
 def convert_label2tensor(label, device=torch.device('cpu')):
     u = [ELEMENT2NN[i] for i in label]
     return torch.tensor(u, device=device, dtype=torch.long)
-
 
 def convert_targets2tensor(
         targets, device=torch.device('cpu'), dtype=torch.float
 ):
     return torch.tensor(targets, device=device, dtype=dtype).reshape(-1, 1)
+
+def match_old_fun_names(fun):
+    if fun['bond'] is not None and fun['support_type'] == "AG":
+        if fun['params']['Psi'] == 0:
+            return "aniso", 0
+        elif fun['params']['Psi'] == 1:
+            return "aniso", 1
+        else:
+            raise IOError("old parametrization does not allow Psi value {:d}".format(fun['parameters']['Psi']))
+    elif fun['bond'] is None:
+        if fun['support_type'] == 'ORC':
+            return "core", None
+        elif fun['support_type'] == 'ORCV':
+            return "iso", 0
+        elif fun['support_type'] == 'ORV':
+            return "iso", 1
+        elif fun['support_type'] == 'OR':
+            return "iso", 0
+        else:
+            raise IOError("unknown support type {:s}".format(fun['support_type']))
+    else:
+        raise IOError("can not understand function {:s}".format(json.dumps(fun)))
+
+def match_fun_names(fun):
+    fn = fun['support_type']
+    return FUNCTION_NAMES2POSITION[fn]
 
 
 class MolecularDataset(data.Dataset):
@@ -25,23 +49,24 @@ class MolecularDataset(data.Dataset):
             self, device, dtype, ids=None,
             model_parameters_path=None,
             molecular_data_path=None,
-            prefetch=False
+            prefetch=False, integration_method=integrate_from_dict,
+            match_method=match_fun_names
     ):
         """
+        MolecularDataset
+        ---
+        Allows to load batches of coordinates + atom_types + topology + charge + function integrals +
+        coefficients targets. It is used to train deep learning models.
 
-        :param device:
-        :param dtype:
-        :param ids:
-        :param path2targets:
-        :param path2data:
-        :param normalize_sample:
-        :param charges
-        :param integrals
+
+        :param device: either cuda or cpu
+        :param dtype: float32 or float64 to specify either single or double precission
+        :param ids: names of the molecules that will be read by this data loader
+        :param model_parameters_path: path where parameters files of specified molecules should be located
+        :param molecular_data_path: path where Mol2 files of specified molecules should be located
+        :param prefetch: wether to read all the inputs at once or not. It saves time in long term, but it takes time
         """
-        import math
-        from a2md.mathfunctions import expfun_integral, angular_gaussian_integral
-        self.radial_integral = expfun_integral
-        self.angular_integral = angular_gaussian_integral
+
         self.ids = ids
 
         max_atoms = 0
@@ -49,13 +74,8 @@ class MolecularDataset(data.Dataset):
 
         for i in ids:
 
-            if molecular_data_path is not None:
-                mol2_filename = molecular_data_path + i + '.mol2'
-
-            else:
-                mol2_filename = i + '.mol2'
-
-            mm = Mol2(file=mol2_filename, verbose=False)
+            mol2_filename = molecular_data_path / '{:s}.mol2'.format(i)
+            mm = Mol2(file=mol2_filename)
 
             natoms = mm.get_number_atoms()
             nbonds = mm.get_number_bonds()
@@ -72,6 +92,9 @@ class MolecularDataset(data.Dataset):
         self.prefetch = prefetch
         self.max_atoms = max_atoms
         self.max_bonds = max_bonds
+
+        self.integration_method = integration_method
+        self.match_method = match_method
 
         if prefetch:
             self.labels = []
@@ -100,36 +123,23 @@ class MolecularDataset(data.Dataset):
                         print("-", end=" {:8d}\n".format(idx))
 
 
-
     def calculate_integral(self, fun):
         """
 
         :param fun:
         :return:
         """
-        if fun['support_type'] in ['ORCV', 'OR', 'ORV', 'ORC']:
-            a = fun['params']['A3']
-            b = fun['params']['B3']
-            return self.radial_integral(a, b) * 2
-        elif fun['support_type'] == 'AG':
-            g = fun['params']['G']
-            u = fun['params']['U']
-            alpha = fun['params']['Alpha']
-            return self.angular_integral(g, u, alpha)
+        return self.integration_method(fun)
 
     @staticmethod
-    def match_bond(anisotropic_params, connectivity_tensor, fun, nbonds):
+    def match_bond(connectivity_tensor, fun, nbonds):
         """
 
-        :param anisotropic_params:
         :param connectivity_tensor:
         :param fun:
         :param nbonds:
         :return:
         """
-        edge = int(fun['params']['Psi'] == 1)  # 0 if Psi = 0, 1 if Psi = 1
-        flag = False
-        j = 0
         for j in range(nbonds):
             c1 = (connectivity_tensor[j, 0] == fun['center']) and (
                     connectivity_tensor[j, 1] == fun['bond']
@@ -138,19 +148,12 @@ class MolecularDataset(data.Dataset):
                     connectivity_tensor[j, 0] == fun['bond']
             )
             if c1:
-                flag = True
-                anisotropic_params[j, edge] = fun['coefficient']
-                break
+                return j, 0
             elif c2:
-                flag = True
-                edge = edge + 2
-                anisotropic_params[j, edge] = fun['coefficient']
-                break
-        if not flag:
-            warnings.warn("bond was not matched")
-            return None
-        else:
-            return j, edge
+                return j, 2
+
+        warnings.warn("bond was not matched")
+        return None, None
 
     def __len__(self):
         return len(self.ids)
@@ -164,8 +167,8 @@ class MolecularDataset(data.Dataset):
         import math
 
         identifier = self.ids[item]
-        mm = Mol2(self.mol_path + identifier + '.mol2')
-        with open(self.params_path + identifier + '.ppp') as f:
+        mm = Mol2(self.mol_path / '{:s}.mol2'.format(identifier))
+        with open(self.params_path / '{:s}.ppp'.format(identifier)) as f:
             params = json.load(f)
 
         na = mm.get_number_atoms()
@@ -183,27 +186,23 @@ class MolecularDataset(data.Dataset):
         coords_tensor[:na, :] = torch.tensor(mm.get_coordinates(), device=torch.device('cpu'), dtype=self.dtype)
         labels_tensor[:na] = convert_label2tensor(mm.get_atomic_numbers(), device=self.device)
         connectivity_tensor[:nb, :] = torch.tensor(mm.get_bonds() - 1, device=torch.device('cpu'), dtype=torch.uint8)
-        charges_tensor[:na] = torch.tensor(mm.get_charge(kind='total'), device=self.device, dtype=self.dtype)
+        charges_tensor[:na] = torch.tensor(mm.get_absolute_charges(), device=self.device, dtype=self.dtype)
 
         for fun in params:
 
             if math.isnan(fun['coefficient']):
                 raise IOError("issue with instance {:s}".format(identifier))
 
-            if fun['support_type'] == 'ORC':
+            funtype, pos = self.match_method(fun)
+            if funtype == 'core':
                 charges_tensor[fun['center']] -= self.calculate_integral(fun)
-
-            if fun['support_type'] == 'ORCV' or fun['support_type'] == 'OR':
-                isotropic_params[fun['center'], 0] = fun['coefficient']
-                isotropic_integrals[fun['center'], 0] = self.calculate_integral(fun)
-
-            elif fun['support_type'] == 'ORV':
-                isotropic_params[fun['center'], 1] = fun['coefficient']
-                isotropic_integrals[fun['center'], 1] = self.calculate_integral(fun)
-
-            elif fun['support_type'] == 'AG':
-                current_center, current_type = self.match_bond(anisotropic_params, connectivity_tensor, fun, nb)
-                anisotropic_integrals[current_center, current_type] = self.calculate_integral(fun)
+            elif funtype == 'iso':
+                isotropic_params[fun['center'], pos] = fun['coefficient']
+                isotropic_integrals[fun['center'], pos] = self.calculate_integral(fun)
+            elif funtype == 'aniso':
+                bond_idx, col = self.match_bond(connectivity_tensor, fun, nb)
+                anisotropic_params[bond_idx, col + pos] = fun['coefficient']
+                anisotropic_integrals[bond_idx, col + pos] = self.calculate_integral(fun)
 
         return [
             i.to(self.device) for i in [labels_tensor, connectivity_tensor, coords_tensor, charges_tensor,
@@ -226,44 +225,18 @@ class MolecularDataset(data.Dataset):
             return self.fetch(item)
 
 
-class CompleteSetDensityParams(MolecularDataset):
-    def __init__(
-            self, device, dtype, kind='training', number=None,
-            charges=False, integrals=False
-    ):
-        from a2mdnet import COMPLETE_SET_DENSITY_DATASET
-        if kind not in ['curated_training', 'curated_validation', 'training', 'validation', 'all', 'test']:
-            raise IOError("the requested complete set kind does not exist")
-
-        idx_file = COMPLETE_SET_DENSITY_DATASET[kind + '_idx']
-
-        with open(idx_file) as f:
-            idx = json.load(f)
-
-        if number is not None:
-            idx = idx[:number]
-
-        MolecularDataset.__init__(
-            self,
-            device=device,
-            dtype=dtype,
-            ids=idx,
-            path2targets=COMPLETE_SET_DENSITY_DATASET['density_path'],
-            path2data=COMPLETE_SET_DENSITY_DATASET['geometry_path'],
-            charges=charges, integrals=integrals
-        )
-
-
 class MolecularElectronDensityDataset(MolecularDataset):
     DENSITY_POINTS=1000
     def __init__(
         self, device, dtype, ids=None, model_parameters_path=None,
         molecular_data_path=None, density_data_path=None,
-        mol_prop=None, prefetch=True
+        mol_prop=None, prefetch=True, integration_method=integrate_from_dict,
+        match_method=match_fun_names
     ):
         MolecularDataset.__init__(
             self, device, dtype, ids, model_parameters_path,
-            molecular_data_path, prefetch
+            molecular_data_path, prefetch, integration_method=integration_method,
+            match_method=match_method
         )
 
         self.density_data_path = density_data_path
@@ -272,7 +245,7 @@ class MolecularElectronDensityDataset(MolecularDataset):
         if self.density_data_path is not None and prefetch:
             for item in self.ids:
                 self.density_buffer.append(
-                    np.load(self.density_data_path + item + '.npy')
+                    np.load(self.density_data_path / '{:s}.npy'.format(item))
                 )
 
         if mol_prop is None:
@@ -293,7 +266,7 @@ class MolecularElectronDensityDataset(MolecularDataset):
 
                 if not self.prefetch:
 
-                    density = np.load(self.density_data_path + self.ids[item] + '.npy')
+                    density = np.load(self.density_data_path / '{:s}.npy'.format(self.ids[item]))
                     density = density[np.random.randint(0, density.shape[0], self.DENSITY_POINTS), :]
                     density = torch.tensor(density, dtype=torch.float, device=self.device)
                     output.append(density[:, :3])
@@ -311,68 +284,3 @@ class MolecularElectronDensityDataset(MolecularDataset):
                 output.append(torch.tensor(self.mol_prop[self.ids[item]], dtype=self.dtype, device=self.device))
 
             return output
-
-class Aniset(MolecularElectronDensityDataset):
-    def __init__(
-            self, device, dtype, kind='training', number=None,
-            energy=False
-    ):
-        from a2mdnet import ANISET_DATASET
-        if kind not in ['training', 'validation', 'all', 'test']:
-            raise IOError("the requested complete set kind does not exist")
-
-        idx_file = ANISET_DATASET[kind + '_idx']
-
-        with open(idx_file) as f:
-            idx = json.load(f)
-
-        if number is not None:
-            idx = idx[:number]
-
-        mol_prop = None
-        if energy:
-            mol_prop = ANISET_DATASET['energy']
-
-
-        MolecularElectronDensityDataset.__init__(
-            self,
-            device=device,
-            dtype=dtype,
-            ids=idx,
-            model_parameters_path=ANISET_DATASET['density_path'],
-            molecular_data_path=ANISET_DATASET['geometry_path'],
-            density_data_path=ANISET_DATASET['density_values_path'],
-            load_charges=load_charges, load_integrals=load_integrals, mol_prop=mol_prop
-        )
-
-class Fdaset(MolecularElectronDensityDataset):
-    def __init__(
-            self, device, dtype, kind='training', number=None,
-            energy=False
-    ):
-        from a2mdnet import FDASET
-        if kind not in ['all', 'test']:
-            raise IOError("the requested complete set kind does not exist")
-
-        idx_file = FDASET[kind + '_idx']
-
-        with open(idx_file) as f:
-            idx = json.load(f)
-
-        if number is not None:
-            idx = idx[:number]
-
-        mol_prop = None
-        if energy:
-            mol_prop = FDASET['energy']
-
-        MolecularElectronDensityDataset.__init__(
-            self,
-            device=device,
-            dtype=dtype,
-            ids=idx,
-            model_parameters_path=FDASET['density_path'],
-            molecular_data_path=FDASET['geometry_path'],
-            density_data_path=FDASET['density_values_path'],
-            load_charges=load_charges, load_integrals=load_integrals, mol_prop=mol_prop
-        )

@@ -1,6 +1,7 @@
 import numpy as np
 from a2md.baseclass import A2MDBaseClass
-
+from a2md import mathfunctions
+import math
 symetry_index = np.array(
     [
         [0, 0, 0],
@@ -57,6 +58,64 @@ def create_all2all_topology(n_items):
             if i != j :
                 topo_array[i].append(j)
     return topo_array
+
+def topology_from_bonds(bonds, natoms, nbonds):
+    topology = []
+    for i in range(natoms): topology.append([])
+    for i in range(nbonds):
+        begin = int(bonds[i, 0])
+        end = int(bonds[i, 1])
+        topology[begin - 1].append(end - 1)
+        topology[end - 1].append(begin - 1)
+    return topology
+
+def integrate_from_dict(fun_dict):
+    """
+    integrate from dict
+    ---
+    this function allows to integrate a function without having to declare it as a support function,
+    directly from the ppp.
+
+    Important: it does not multiply by the coefficient!!
+
+    :param fun_dict: contains all the function parameters
+    :return: float
+    """
+    try:
+        a = fun_dict['params']['A']
+        b = fun_dict['params']['B']
+    except KeyError:
+        raise IOError("could not find the parameters of the radial part")
+    try:
+        p = fun_dict['params']['P']
+    except KeyError:
+        if fun_dict['bond'] is None: p = 0
+        else: p = 1
+    if fun_dict['bond'] is None:
+        return 4 * np.pi * mathfunctions.generalized_exponential_integral(a, b, p)
+    else:
+        alpha = fun_dict['params']['alpha']
+        return 2 * np.pi * mathfunctions.generalized_exponential_integral(
+            a, b, p) * mathfunctions.angular_gaussian_integral(alpha)
+
+def integrate_from_old_dict(fun):
+    """
+
+    :return:
+    """
+    if fun['support_type'] in ['ORCV', 'OR', 'ORV', 'ORC']:
+        a = fun['params']['A3']
+        b = fun['params']['B3']
+        return mathfunctions.generalized_exponential_integral(a, b, 0) * 4 * math.pi
+    elif fun['support_type'] == 'AG':
+        g = fun['params']['G']
+        u = fun['params']['U']
+        alpha = fun['params']['Alpha']
+        v = mathfunctions.angular_gaussian_integral(alpha)
+        v *= mathfunctions.generalized_exponential_integral(u, g, P=1)
+        v *= 2 * math.pi
+        return v
+
 
 class ClusterTool(A2MDBaseClass):
     def __init__(self, name, verbose=False):

@@ -1,7 +1,7 @@
 from a2mdio.molecules import Mol2
 from a2mdnet.data import convert_label2tensor
-from a2md.utils import Integrator
-from a2md.mathfunctions import expfun_integral, angular_gaussian_integral
+from a2md.utils import integrate_from_dict
+from a2mdnet.data import match_fun_names
 import warnings
 import torch
 
@@ -72,30 +72,25 @@ class Parametrizer:
         coords = torch.tensor(mol.get_coordinates(), device=self.device, dtype=torch.float).unsqueeze(0)
         labels = convert_label2tensor(mol.get_atomic_numbers(), device=self.device).unsqueeze(0)
         connectivity = torch.tensor(mol.get_bonds(), dtype=torch.long, device=self.device).unsqueeze(0)
-        charge = torch.tensor(mol.get_charge(kind='total'), dtype=torch.float, device=self.device).unsqueeze(0)
+        charge = torch.tensor(mol.get_total_charge(), dtype=torch.float, device=self.device).unsqueeze(0)
         natoms = mol.get_number_atoms()
         nbonds = mol.get_number_bonds()
         connectivity -= 1
-        # _, _, iso_out, aniso_out = self.model(labels, connectivity, coords)
 
-        integrator = Integrator(verbose=False)
         int_iso = torch.zeros(1, natoms, 2)
         int_aniso = torch.zeros(1, nbonds, 4)
 
         for fun in params:
             center = fun['center']
             support_type = fun['support_type']
-            if support_type == 'ORC':
-                charge[0, center] -= integrator.integrate_fun(fun)
-            elif support_type == 'ORCV':
-                int_iso[0, center, 0] = integrator.integrate_fun(fun)
-            elif support_type == 'ORV':
-                int_iso[0, center, 1] = integrator.integrate_fun(fun)
-            elif support_type == 'OR':
-                int_iso[0, center, 0] = integrator.integrate_fun(fun)
-            elif support_type == 'AG':
+            funtype, pos = self.match_bond(fun)
+            if funtype == 'core':
+                charge[0, center] -= integrate_from_dict(fun)
+            elif funtype == 'iso':
+                int_iso[0, center, pos] = integrate_from_dict(fun)
+            elif funtype == 'aniso':
                 idx, col = self.match_bond(connectivity, fun)
-                int_aniso[0, idx, col] = integrator.integrate_fun(fun)
+                int_aniso[0, idx, col + pos] = integrate_from_dict(fun)
 
         int_iso = int_iso.to(self.device)
         int_aniso = int_aniso.to(self.device)
@@ -112,17 +107,14 @@ class Parametrizer:
         for fun in params:
             center = fun['center']
             support_type = fun['support_type']
-            if support_type == 'ORC':
+            funtype, pos = match_fun_names(fun)
+            if funtype == 'core':
                 continue
-            elif support_type == 'ORCV':
-                fun['coefficient'] = iso_out[center, 0].item()
-            elif support_type == 'ORV':
-                fun['coefficient'] = iso_out[center, 1].item()
-            elif support_type == 'OR':
-                fun['coefficient'] = iso_out[center, 0].item()
-            elif support_type == 'AG':
+            if funtype == 'iso':
+                fun['coefficient'] = iso_out[center, pos].item()
+            elif funtype == 'aniso':
                 idx, col = self.match_bond(connectivity, fun)
-                fun['coefficient'] = aniso_out[idx, col].item()
+                fun['coefficient'] = aniso_out[idx, col + pos].item()
 
         return params
 

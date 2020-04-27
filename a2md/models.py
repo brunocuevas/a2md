@@ -5,7 +5,7 @@ from a2md.support import SupportAngular
 from a2md.support import SupportEnsemble
 from a2md import TOPO_RESTRICTED_PARAMS
 from a2md.baseclass import A2MDBaseClass
-from a2mdio.molecules import MolRepresentation, PDB
+from a2mdio.molecules import Mol2, PDB
 from a2md.utils import convert_connectivity_tree_to_pairs
 from a2mdio import PDB_PROTEIN_TYPE_CHARGES, PDB_PROTEIN_CHARGES, PDB_PROTEIN_TYPES, PDB_PROTEIN_TOPOLOGY
 CLUSTERING_TRESHOLD_VALUE = 0.02
@@ -29,7 +29,7 @@ SUPPORT_TYPE = dict(
     angular = lambda args : SupportAngular(**args)
 )
 
-def a2md_from_mol(mol : MolRepresentation):
+def a2md_from_mol(mol : Mol2):
     """
     returns the density model associated to a Mol2
     :param mol:
@@ -41,6 +41,7 @@ def a2md_from_mol(mol : MolRepresentation):
     coords = mol.get_coordinates(units="au")
     charge = mol.get_absolute_charges()
     topology = mol.get_bonds()
+    segments = mol.segment_idx
     topo_array = []
     for i in range(mol.get_number_atoms()): topo_array.append([])
     for i in range(mol.get_number_bonds()):
@@ -49,7 +50,8 @@ def a2md_from_mol(mol : MolRepresentation):
         topo_array[begin - 1].append(end - 1)
         topo_array[end - 1].append(begin - 1)
     return Molecule(
-        coordinates=coords, atomic_numbers=an, charge=charge, topology=topo_array
+        coordinates=coords, atomic_numbers=an, charge=charge, topology=topo_array,
+        segments=segments
     )
 
 def polymer_from_pdb(mol : PDB, chain : str ):
@@ -84,7 +86,7 @@ class Molecule(A2MDBaseClass) :
     parametrization_default = TOPO_RESTRICTED_PARAMS
     def __init__(
             self, coordinates, atomic_numbers, charge, topology, parameters=None, verbose=False,
-            atom_labels=None
+            atom_labels=None, segments=None
     ):
         """
 
@@ -94,6 +96,7 @@ class Molecule(A2MDBaseClass) :
         :param parameters: parameters for bonding
         :param verbose:
         :param atomic_numbers
+        :param segments
         :type coordinates: np.ndarray
         :type charge: np.ndarray
         :type topology: list
@@ -119,6 +122,12 @@ class Molecule(A2MDBaseClass) :
         self.regularization = 0.0001
         self.is_clusterized = False
         self.is_optimized = False
+        self.segments = segments  # segments allows to perform semi-restricted optimizations, in which
+        # a part of the molecule corresponding to a given segment must match the sum of charges of that
+        # fragment. It's an intermediate step between fully atom-charge restriction and molecule-wide single
+        # restriction.
+        if segments is not  None:
+            self.nsegments = np.unique(np.array(self.segments)).size
 
         if parameters is not None:
             self.read(parameters)
@@ -313,6 +322,13 @@ class Molecule(A2MDBaseClass) :
             if f: d += c * sup.eval(x)
         return d
 
+    def eval_by_type(self, x, fun_type):
+        d = np.zeros(x.shape[0])
+        for sup, c, name in zip(self.functions, self.opt_params, self.function_names):
+            if name[1] in fun_type:
+                d += c * sup.eval(x)
+        return d
+
     def eval_volume(self, spacing, resolution):
         """
 
@@ -391,7 +407,6 @@ class Molecule(A2MDBaseClass) :
         """
         z = 0.0
         for i, (c, fun) in enumerate(zip(self.opt_params, self.functions)):
-
             z += c * fun.integral()
 
         return z
@@ -463,8 +478,40 @@ class Molecule(A2MDBaseClass) :
         """
         return self.topology.copy()
 
+    def prepare_restricted(self):
+        n_restrictions = len(self.atom_charges)
+        unfrozen_map2center = [self.map_function2center[i] for i in range(self.nfunctions) if
+                               not self.map_frozenfunctions[i]]
+        frozen_map2center = [self.map_function2center[i] for i in range(self.nfunctions) if
+                             self.map_frozenfunctions[i]]
+        q = self.atom_charges.copy()
+        return n_restrictions, unfrozen_map2center, frozen_map2center, q
+
+    def prepare_unrestricted(self):
+        n_restrictions = 1
+        unfrozen_map2center = [0 for i in range(self.nfunctions) if not self.map_frozenfunctions[i]]
+        frozen_map2center = [0 for i in range(self.nfunctions) if self.map_frozenfunctions[i]]
+        q = np.array([self.atom_charges.copy().sum()])
+        return n_restrictions, unfrozen_map2center, frozen_map2center, q
+
+    def prepare_semirestricted(self):
+        try:
+            n_restrictions = self.nsegments
+        except ValueError:
+            raise RuntimeError("there are no defined segments")
+        tmp_unfrozen_map2center = [self.map_function2center[i] for i in range(self.nfunctions) if
+                                   not self.map_frozenfunctions[i]]
+        tmp_frozen_map2center = [self.map_function2center[i] for i in range(self.nfunctions) if
+                                 self.map_frozenfunctions[i]]
+        unfrozen_map2center = [self.segments[i] for i in tmp_unfrozen_map2center]
+        frozen_map2center = [self.segments[i] for i in tmp_frozen_map2center]
+        q = [0.0] * self.nsegments
+        for i, atom_q in zip(self.segments, self.atom_charges):
+            q[i] += atom_q
+        return n_restrictions, unfrozen_map2center, frozen_map2center, q
+
     def optimize(
-            self, training_coordinates, training_density
+            self, training_coordinates, training_density, optimization_mode='restricted'
     ):
         """
         sets the coefficients associated to each support function by
@@ -476,8 +523,10 @@ class Molecule(A2MDBaseClass) :
             - q_{i} : charge of atom i
         :param training_coordinates: coordinates of nuclei atoms
         :param training_density: density values
+        :param optimization_mode: either restricted, unrestricted or semirestricted
         :type training_coordinates: np.ndarray
         :type training_density: np.ndarray
+        :type optimization_mode: str
         :return: coefficients
         :rtype: np.ndarray
         """
@@ -486,17 +535,22 @@ class Molecule(A2MDBaseClass) :
         r = training_density.copy()
 
         frozen_ensemble = [self.functions[i] for i in range(self.nfunctions) if self.map_frozenfunctions[i]]
-        frozen_map2center = [self.map_function2center[i] for i in range(self.nfunctions) if self.map_frozenfunctions[i]]
         unfrozen_ensemble = [self.functions[i] for i in range(self.nfunctions) if not self.map_frozenfunctions[i]]
-        unfrozen_map2center = [self.map_function2center[i] for i in range(self.nfunctions) if
-                               not self.map_frozenfunctions[i]]
 
         n_coefficients = len(unfrozen_ensemble)
-        n_restrictions = len(self.atom_charges)
+
+        if optimization_mode == 'restricted':
+            n_restrictions, unfrozen_map2center, frozen_map2center, q = self.prepare_restricted()
+        elif optimization_mode == 'unrestricted':
+            n_restrictions, unfrozen_map2center, frozen_map2center, q = self.prepare_unrestricted()
+        elif optimization_mode == 'semirestricted':
+            n_restrictions, unfrozen_map2center, frozen_map2center, q = self.prepare_semirestricted()
+        else:
+            raise IOError("optimization mode must be either restricted, unrestricted or semirestricted")
+
         n_training = training_coordinates.shape[0]
         w = np.ones(n_training, dtype='float64') / n_training
 
-        q = self.atom_charges.copy()
         for i, frozen_fun in enumerate(frozen_ensemble):
             j = frozen_map2center[i]
             q[j] -= frozen_fun.integral()
@@ -607,6 +661,7 @@ class Molecule(A2MDBaseClass) :
         opt_params = []
         map_fun2center = []
         map_funfrozen = []
+        function_names = []
         for xi_iter in range(len(params)) :
             ppp = params[xi_iter]
             map_fun2center.append(ppp['center'])
@@ -626,14 +681,15 @@ class Molecule(A2MDBaseClass) :
 
                 bonding_axis = self.coordinates[ppp['bond'], :] - self.coordinates[ppp['center'], :]
                 function_list[-1].set_reference_frame(bonding_axis)
-                self.function_names.append((ppp['center'], ppp['support_type'], ppp['bond']))
+                function_names.append((ppp['center'], ppp['support_type'], ppp['bond']))
             else:
-                self.function_names.append((ppp['center'], ppp['support_type']))
+                function_names.append((ppp['center'], ppp['support_type'], None))
         opt_params = np.array(opt_params, dtype='float64')
         self.opt_params = np.array(opt_params)
         self.functions = function_list
         self.map_function2center = map_fun2center
         self.map_frozenfunctions = map_funfrozen
+        self.function_names = function_names
         self.nfunctions = len(opt_params)
 
     def set_regularization_constant(self, gamma):
@@ -643,6 +699,32 @@ class Molecule(A2MDBaseClass) :
         :return:
         """
         self.regularization = gamma
+
+    def use_atomic_number_as_charge(self):
+        """
+
+        :return:
+        """
+        self.atom_charges = self.atomic_numbers.astype('float64')
+
+    def modify_charge_by_segment(self, charge_str):
+        if len(charge_str) > self.nsegments:
+            raise IOError("charge str must be equal to the number of segments")
+
+        charges = self.atom_charges.copy()
+        segment_idx = self.segments.copy()
+        for i, character in enumerate(charge_str):
+            if character == 'n': segment_charge = 0.0
+            elif character == '+' : segment_charge = -1.0
+            elif character == '-' : segment_charge = 1.0
+            else:
+                raise IOError("unrecognized character!")
+            len_segment = len([j for j in segment_idx if j == i])
+            segment_charge /= len_segment
+            for j, segment in enumerate(self.segments):
+                if segment == i:
+                    charges[j] += segment_charge
+        self.atom_charges = charges
 
 
 class Polymer(Molecule):
@@ -683,7 +765,7 @@ class Polymer(Molecule):
 
         parameters = []
         #
-
+        missing_keys = []
         for i in range(self.natoms):
 
             atom_name = self.atom_labels[i]
@@ -697,10 +779,7 @@ class Polymer(Molecule):
 
             except KeyError:
 
-                print("WARNING: could not find the combination {:s} {:s} in our parameters".format(
-                    atom_resname, atom_name)
-                )
-                print("\ta standard isotropic electron distribution will be given to this atom")
+                missing_keys.append((atom_resname, atom_name))
                 current_label = AN2ELEMENT[atomic_number]
                 for fun in self.parametrization_default['_MODEL'][current_label]:
                     if fun['_CONNECT'] == '_NONE':
@@ -727,7 +806,9 @@ class Polymer(Molecule):
                 try:
                     bond_fun_list = aniso_funs[bond_name]
                 except KeyError:
-                    print("WARNING: could not find a parameter for ...")
+                    print("WARNING: could not find a parameter for {:s}|{:s}|{:s}".format(
+                        atom_resname, atom_name, bond_name
+                    ))
                     continue
 
                 for fun in bond_fun_list:
@@ -736,6 +817,168 @@ class Polymer(Molecule):
                     current_fun['bond'] = k
                     parameters.append(current_fun)
 
-
-
         self.read(parameters)
+        return missing_keys
+
+    def get_residue_charge(self, idx, kind='total'):
+        """
+
+        :return:
+        """
+        if kind not in ['partial', 'total']:
+            raise IOError("kind must be either partial or total")
+        charge = 0.0
+        for i, (c, fun, center) in enumerate(zip(self.opt_params, self.functions, self.map_function2center)):
+            res_idx = self.atom_residx[center]
+            if res_idx == idx:
+                charge += fun.integral() * c
+        if kind == 'total':
+            return charge
+        elif kind == 'partial':
+            charge = - charge
+            for i, (an, res_idx) in enumerate(zip(self.atomic_numbers, self.atom_residx)):
+                if res_idx == idx:
+                    charge += an
+            return charge
+
+    def get_residue_functions(self, idx):
+        for i, (c, fun, center, name) in enumerate(zip(self.opt_params, self.functions, self.map_function2center, self.function_names)):
+            res_idx = self.atom_residx[center]
+            if res_idx == idx:
+                yield c, fun, center, name
+
+class ConformerCollection(Molecule):
+    """
+    ConformerCollection
+    ---
+    Molecule instance that stores a group of conformations in its variable --conformers--.
+    The method parametrize_conformer allows to change the positions of the centers of the molecule
+    to one of the centers.
+
+    The method eval conformers allows to use the different conformers at the same time for different sets of coordinates
+
+    The method conformer optimize optimizes model coefficients considering all the possible conformations. Requires
+    a set of coordinates and densities that is the same size than the number of conformations.
+
+    """
+    def __init__(
+            self,
+            coordinates, atomic_numbers, charge, topology,
+            parameters=None, verbose=False, atom_labels=None, segments=None
+    ):
+        Molecule.__init__(
+            self,
+            coordinates=coordinates[0], atomic_numbers=atomic_numbers, topology=topology, charge=charge,
+            parameters=parameters, verbose=verbose, atom_labels=atom_labels, segments=segments
+        )
+        self.nconformers = len(coordinates)
+        self.conformers = coordinates
+        self.current_conformer = 0
+
+    def parametrize_conformer(self, i):
+
+        if i > self.nconformers:
+            raise RuntimeError("there is not conformer {:d}".format(i))
+        current_coordinates = self.conformers[i]
+        self.current_conformer = i
+
+        for i, ((atom_idx, _, bond_idx), fun) in enumerate(zip(self.function_names, self.functions)):
+            fun.coordinates = current_coordinates[atom_idx, :]
+            if bond_idx is not None:
+                bv = current_coordinates[bond_idx, :] - current_coordinates[atom_idx, :]
+                bv /= np.linalg.norm(bv)
+                fun.set_reference_frame(bv)
+
+    def eval_conformers(self, x):
+        p = []
+        for i, x_c in enumerate(x):
+            self.parametrize_conformer(i)
+            p.append(np.zeros(x_c.shape[0], dtype="float64"))
+            for j, (c, fun) in enumerate(zip(self.opt_params, self.functions)):
+                p[-1] += c * fun.eval(x_c)
+
+        return p
+
+    def conformer_optimize(
+            self, training_coordinates, training_densities, optimization_mode='restricted'
+    ):
+        if len(training_coordinates) != len(training_densities):
+            raise RuntimeError(
+                "the number of conformer densities does not match the number of training coordinates")
+
+        if len(training_densities) != self.nconformers:
+            raise RuntimeError("the number of conformer does not match the number of training coordinates")
+
+        unfrozen_ensemble = [self.functions[i] for i in range(self.nfunctions) if not self.map_frozenfunctions[i]]
+        frozen_ensemble = [self.functions[i] for i in range(self.nfunctions) if self.map_frozenfunctions[i]]
+        n_coefficients = len(unfrozen_ensemble)
+
+        if optimization_mode == 'restricted':
+            n_restrictions, unfrozen_map2center, frozen_map2center, q = self.prepare_restricted()
+        elif optimization_mode == 'unrestricted':
+            n_restrictions, unfrozen_map2center, frozen_map2center, q = self.prepare_unrestricted()
+        elif optimization_mode == 'semirestricted':
+            n_restrictions, unfrozen_map2center, frozen_map2center, q = self.prepare_semirestricted()
+        else:
+            raise IOError("optimization mode must be either restricted, unrestricted or semirestricted")
+
+        p = np.zeros((n_coefficients + n_restrictions), dtype='float64')
+        b = np.zeros((n_coefficients + n_restrictions, n_coefficients + n_restrictions), dtype='float64')
+
+        for i, frozen_fun in enumerate(frozen_ensemble):
+            j = frozen_map2center[i]
+            q[j] -= frozen_fun.integral()
+
+        d = []
+        r = []
+        for i, (ctc, ctd) in enumerate(zip(training_coordinates, training_densities)):
+
+            self.parametrize_conformer(i)
+
+            frozen_ensemble = [self.functions[i] for i in range(self.nfunctions) if self.map_frozenfunctions[i]]
+            unfrozen_ensemble = [self.functions[i] for i in range(self.nfunctions) if
+                                 not self.map_frozenfunctions[i]]
+
+            x = ctc.copy()
+            current_r = ctd.copy()
+
+            n_training = current_r.shape[0]
+
+            frozen_ensemble = SupportEnsemble(functions=frozen_ensemble, name='frozen_set')
+            current_r = current_r - frozen_ensemble.eval(x)
+
+            current_d = np.zeros((n_coefficients, n_training), dtype='float64')
+
+            for j, xi in enumerate(unfrozen_ensemble):
+                current_d[j, :] = xi.eval(x)
+
+            d.append(current_d)
+            r.append(current_r)
+
+        d = np.concatenate(d, axis=1)
+        r = np.concatenate(r, axis=0)
+
+        w = np.ones(d.shape[1], dtype='float64') / d.shape[1]
+        effective_gamma = self.regularization / n_coefficients
+        b[:n_coefficients, :n_coefficients] = 2 * (d * w).dot(d.T)
+        b[:n_coefficients, :n_coefficients] = b[:n_coefficients, :n_coefficients] + \
+                                              2 * effective_gamma * np.identity(n_coefficients, dtype='float64')
+
+
+        for i, xi in enumerate(unfrozen_ensemble):
+            j = unfrozen_map2center[i]
+            b[n_coefficients + j, i] += xi.integral()
+            b[i, n_coefficients + j] += xi.integral()
+
+        p[:n_coefficients] = 2 * (d * w).dot(r)
+        p[n_coefficients:] = q
+
+        c = np.linalg.solve(b, p)[:n_coefficients]
+        mask = np.array(self.map_frozenfunctions)
+        self.opt_params = np.ones(self.nfunctions, dtype='float64')
+        self.opt_params[mask == False] = c
+        integral = 0.0
+        for i, (c, xi) in enumerate(zip(self.opt_params, self.functions)):
+            integral += c * xi.integral()
+        self.is_optimized = True
+        return self.opt_params.copy()
