@@ -7,6 +7,9 @@ import json
 import click
 import time
 import sys
+import logging
+
+logger = logging.getLogger('')
 
 @click.group()
 def cli():
@@ -15,6 +18,7 @@ def cli():
     Optimization/prediction/evaluation of a2md models of electron density.
 
     """
+
     pass
 
 @click.command()
@@ -129,50 +133,75 @@ def prepare_qm(name, charge, multiplicity, wfn, population, basis, method, nproc
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
 @click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm')
-@click.option('--output_name', default=None, help="file where to store the output parameters")
+@click.option('--output', default=None, help="file where to store the output parameters")
 @click.option('--cluster', default=None, help="use rbf to clusterize by distance signature") # to modify in the future
+@click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
 @click.argument('name')
 @click.argument('sample')
-def fit(name, sample, opt_mode, regularization_constant, output_name, cluster):
+def fit(name, sample, opt_mode, regularization_constant, output, cluster, verbose):
     """
     ajusts the parameters of a density model to a sample of electron density
     """
+    if verbose == 0: logging.basicConfig(level=logging.CRITICAL)
+    elif verbose == 1 : logging.basicConfig(level=logging.ERROR)
+    else: logging.basicConfig(level=logging.INFO)
+
     start = time.time()
+    logger.info("reading inputs {:s} {:s} ".format(name, sample))
     mm = Mol2(name)
+    sample_file = sample
     try:
+        logger.info("reading sample file as npy")
         sample = np.load(sample)
     except FileNotFoundError:
-        print("could not find the {:s} file".format(sample))
+        logger.error("could not find the {:s} file".format(sample))
     except ValueError:
-        sample = np.loadtxt(sample)
+        try:
+            logger.info("reading csv was unsuccesful. Trying csv")
+            sample = np.loadtxt(sample)
+        except ValueError:
+            logger.error("could not read sample file neither as npy nor csv")
+            sys.exit()
 
+    logger.info("reading of mol2 and sample file was succesful")
+    logger.info("defining model")
     dm = a2md_from_mol(mm)
-    dm.parametrize()
+    logger.info("parametrizing")
+    try:
+        dm.parametrize()
+    except RuntimeError:
+        logger.error("there was some element which is not present in the input parameters")
+        sys.exit()
     if cluster is not None:
-
+        logger.info("using clustering of atoms and bonds")
         if cluster == 'rbf':
+            logger.info("radial basis functions are used as symmetry function")
             rbf = utils.RBFSymmetryCluster(verbose=False)
             dm.clustering(rbf.cluster)
         else:
-            print("no found cluster method {:s}. Aborting".format(cluster))
-            print("TE : {:12.4f}".format(time.time() - start))
+            logger.error("no found cluster method {:s}. Aborting".format(cluster))
             sys.exit(1)
 
     if regularization_constant is not None:
+        logger.info("regularization constat is changed to {:12.4e}".format(regularization_constant))
         dm.set_regularization_constant(regularization_constant)
 
+    logger.info("starting optimization, using a opt_mode={:s}".format(opt_mode))
     dm.optimize(sample[:, :3], sample[:, 3], optimization_mode=opt_mode)
+    logger.info("finished optimization")
 
-    if output_name is None:
-        output_name = name.replace('.mol2', '.ppp')
+    if output is None:
+        output = name.replace('.mol2', '.ppp')
 
     if cluster is not None:
+        logger.info("inflating")
         dm.inflate()
 
-    with open(output_name, 'w') as f:
+    logger.info("saving to {:s}".format(output))
+    with open(output, 'w') as f:
         json.dump(dm.get_parametrization(), f, indent=4)
 
-    print("TE : {:12.4f}".format(time.time() - start))
+    print("FIT NAME:{:s} SAMPLE:{:s} MODE:{:s}, TE:{:12.4f}".format(name, sample_file, opt_mode, time.time() - start))
 
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')

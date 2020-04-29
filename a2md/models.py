@@ -617,7 +617,11 @@ class Molecule(A2MDBaseClass) :
         for i, (element, atom_coords, atom_charge) in enumerate(
                 zip(symbols, self.coordinates, self.atom_charges)
         ):
-            for j, fun in enumerate(model[element]):
+            try:
+                model_element = model[element]
+            except KeyError:
+                raise RuntimeError("the requested element is not present in the parameters")
+            for j, fun in enumerate(model_element):
 
                 if fun['_CONNECT'] == '_NONE':
                     self.map_function2center.append(i)
