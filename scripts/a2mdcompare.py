@@ -3,7 +3,6 @@ from a2md.integrate import integrate_density_functional
 from a2md.integrate import mse_functional, kullback_leibler_functional
 from a2mdio.molecules import Mol2
 from a2mdio.qm import WaveFunction
-import numpy as np
 import json
 import click
 import time
