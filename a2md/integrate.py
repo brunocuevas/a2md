@@ -33,7 +33,8 @@ def split_space(mm : Mol2, fun : Callable):
         r0 = r[i, :]
         yield lambda x : fun(x + r0) * (voronoi(x + r0, r) == i)
 
-def polar_integral(fun : Callable, r_max=10.0, radial_res=100, angular_res=10):
+
+def pi_lebedev(fun : Callable, r_max=10.0, radial_res=100, grid='medium'):
     """
     polar integral
     ---
@@ -41,73 +42,39 @@ def polar_integral(fun : Callable, r_max=10.0, radial_res=100, angular_res=10):
     :param fun:
     :param r_max:
     :param radial_res:
-    :param angular_res:
+    :param grid: either medium, coarse, tight
     :return:
     """
+    from a2md import LEBEDEV_DESIGN
+    lebedevdesgin = np.loadtxt(LEBEDEV_DESIGN[grid])
+
+
+    lebedev = np.zeros((lebedevdesgin.shape[0], 3), dtype='float64')
+    lebedev[:, 0] = np.cos(np.deg2rad(lebedevdesgin[:, 0])) * np.sin(np.deg2rad(lebedevdesgin[:, 1]))
+    lebedev[:, 1] = np.sin(np.deg2rad(lebedevdesgin[:, 0])) * np.sin(np.deg2rad(lebedevdesgin[:, 1]))
+    lebedev[:, 2] = np.cos(np.deg2rad(lebedevdesgin[:, 1]))
+
+    w = lebedevdesgin[:, 2]
     u = np.log(r_max + 1) / radial_res
-    dphi = 2 * np.pi / angular_res
-    drho = np.pi / angular_res
-    phi_grid = np.arange(dphi, 2 * np.pi + dphi, dphi)
-    rho_grid = np.arange(drho, np.pi + drho, drho)
     r_grid = np.exp(np.arange(1, radial_res + 1) * u) - 1
     integral = 0.0
     for i, r in enumerate(r_grid):
-        for j, h in enumerate(rho_grid):
+        dr = r - (np.exp(u * i) - 1)
+        r2 = r
+        r1 = r - 0.5 * dr
+        r0 = r - dr
 
-            dr = r - (np.exp(u * i) - 1)
+        dv = ((r ** 3) / 3) - (((r - dr) ** 3) / 3)
 
-            dv = ((r ** 3) / 3) - (((r - dr) ** 3) / 3)
-            dv *= (np.cos(h - drho) - np.cos(h))
-            dv *= dphi
+        coords = r0 * lebedev
+        f00 = fun(coords)
+        coords = r1 * lebedev
+        f01 = fun(coords)
+        coords = r2 * lebedev
+        f02 = fun(coords)
 
-            coords = np.zeros((angular_res, 3), dtype='float64')
-            coords[:, 0] = (r - dr) * np.sin(h - drho) * np.cos(phi_grid - dphi)
-            coords[:, 1] = (r - dr) * np.sin(h - drho) * np.sin(phi_grid - dphi)
-            coords[:, 2] = (r - dr) * np.cos(h - drho)
-            f000 = fun(coords)
-
-            coords = np.zeros((angular_res, 3), dtype='float64')
-            coords[:, 0] = (r - dr) * np.sin(h - drho) * np.cos(phi_grid)
-            coords[:, 1] = (r - dr) * np.sin(h - drho) * np.sin(phi_grid)
-            coords[:, 2] = (r - dr) * np.cos(h - drho)
-            f010 = fun(coords)
-
-            coords = np.zeros((angular_res, 3), dtype='float64')
-            coords[:, 0] = (r - dr) * np.sin(h) * np.cos(phi_grid - dphi)
-            coords[:, 1] = (r - dr) * np.sin(h) * np.sin(phi_grid - dphi)
-            coords[:, 2] = (r - dr) * np.cos(h)
-            f001 = fun(coords)
-
-            coords = np.zeros((angular_res, 3), dtype='float64')
-            coords[:, 0] = (r - dr) * np.sin(h) * np.cos(phi_grid)
-            coords[:, 1] = (r - dr) * np.sin(h) * np.sin(phi_grid)
-            coords[:, 2] = (r - dr) * np.cos(h)
-            f011 = fun(coords)
-
-            coords = np.zeros((angular_res, 3), dtype='float64')
-            coords[:, 0] = r * np.sin(h - drho) * np.cos(phi_grid - dphi)
-            coords[:, 1] = r * np.sin(h - drho) * np.sin(phi_grid - dphi)
-            coords[:, 2] = r * np.cos(h)
-            f100 = fun(coords)
-
-            coords = np.zeros((angular_res, 3), dtype='float64')
-            coords[:, 0] = r * np.sin(h - drho) * np.cos(phi_grid)
-            coords[:, 1] = r * np.sin(h - drho) * np.sin(phi_grid)
-            coords[:, 2] = r * np.cos(h)
-            f110 = fun(coords)
-
-            coords = np.zeros((angular_res, 3), dtype='float64')
-            coords[:, 0] = r * np.sin(h) * np.cos(phi_grid - dphi)
-            coords[:, 1] = r * np.sin(h) * np.sin(phi_grid - dphi)
-            coords[:, 2] = r * np.cos(h)
-            f101 = fun(coords)
-
-            coords = np.zeros((angular_res, 3), dtype='float64')
-            coords[:, 0] = r * np.sin(h) * np.cos(phi_grid)
-            coords[:, 1] = r * np.sin(h) * np.sin(phi_grid)
-            coords[:, 2] = r * np.cos(h)
-            f111 = fun(coords)
-
-            integral += (dv * (f000 + f001 + f010 + f011 + f100 + f101 + f110 + f111)/8.0).sum()
+        f = (f00 + 4 * f01 + f02) / 6
+        f = f * w * dv * 4 * np.pi
+        integral +=  f.sum()
 
     return integral

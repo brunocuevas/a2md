@@ -139,6 +139,9 @@ def prepare_qm(name, charge, multiplicity, wfn, population, basis, method, nproc
 @click.argument('name')
 @click.argument('sample')
 def fit(name, sample, opt_mode, regularization_constant, output, cluster, verbose):
+    __fit_call(name, sample, opt_mode, regularization_constant, output, cluster, verbose)
+
+def __fit_call(name, sample, opt_mode, regularization_constant, output, cluster, verbose):
     """
     ajusts the parameters of a density model to a sample of electron density
     """
@@ -202,6 +205,75 @@ def fit(name, sample, opt_mode, regularization_constant, output, cluster, verbos
         json.dump(dm.get_parametrization(), f, indent=4)
 
     print("FIT NAME:{:s} SAMPLE:{:s} MODE:{:s}, TE:{:12.4f}".format(name, sample_file, opt_mode, time.time() - start))
+
+@click.command()
+@click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
+@click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm')
+@click.option('--cluster', default=None, help="use rbf to clusterize by distance signature") # to modify in the future
+@click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
+@click.argument('names_file')
+def fit_many(names_file, opt_mode, regularization_constant, cluster, verbose):
+    """
+    fits many compounds
+    """
+    with open(names_file) as f:
+        names = json.load(f)
+    mol2_ = [i['mol2'] for i in names]
+    out_ = [i['output'] for i in names]
+    sample_ = [i['sample'] for i in names]
+    n = len(mol2_)
+    global_start = time.time()
+    for i, (m, s, o) in enumerate(zip(mol2_, sample_, out_)):
+        __fit_call(
+            m, s, opt_mode=opt_mode, regularization_constant=regularization_constant, output=o,
+            cluster=cluster, verbose=verbose
+        )
+    global_end = time.time()
+    time_elapsed = global_end - global_start
+    print("FIT_MANY, {:8d} molecules, TE={:8.4f} s, TEPM={:8.4f} s/mol".format(n, time_elapsed, time_elapsed/n))
+
+@click.command()
+@click.option('--mol2_path', default=None, help="path for mol2 files")
+@click.option('--sample_path', default=None, help="path for npy/csv files")
+@click.option('--output_path', default=None, help="path for ppp files")
+@click.option('--filter_names', default=None, help="list of names to avoid")
+@click.option('--output_format', default='json', help="either json or txt")
+@click.argument('names')
+@click.argument('output_file')
+def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, filter_names, output_format):
+    """
+    prepares a set of files to run fit many
+    """
+    start = time.time()
+    with open(names) as f:
+        names = json.load(f)
+    if filter_names is not None:
+        with open(filter_names) as f:
+            filter_names = json.load(f)
+    else:
+        filter_names=[]
+    output = []
+    if mol2_path is not None : mol2_str = mol2_path + "/{:s}.mol2"
+    else: mol2_str = "{:s}.mol2"
+    if sample_path is not None : sample_str = sample_path + "/{:s}.npy"
+    else: sample_str = "{:s}.npy"
+    if output_path is not None : output_str = output_path + "/{:s}.ppp"
+    else: output_str = "{:s}.ppp"
+
+    for i, n in enumerate(names):
+        if n in filter_names:
+            continue
+        output.append(dict(
+            mol2=mol2_str.format(n), sample=sample_str.format(n), output=output_str.format(n)
+        ))
+    if output_format == 'json':
+        with open(output_file, "w") as f:
+            json.dump(output, f, indent=4, sort_keys=True)
+    elif output_format == 'txt':
+        with open(output_file, "w") as f:
+            for i, line in enumerate(output):
+                f.write('{:26s} {:26s} {:26s}\n'.format(line['mol2'], line['sample'], line['output']))
+    print("TE = {:8.4f}".format(time.time() - start))
 
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
@@ -333,8 +405,10 @@ cli.add_command(evaluate)
 cli.add_command(write_dx)
 cli.add_command(prepare_qm)
 cli.add_command(fit)
+cli.add_command(fit_many)
 cli.add_command(fit_collection)
 cli.add_command(update_mol2)
+cli.add_command(prepare_fit_many)
 
 if __name__ == "__main__":
 

@@ -20,3 +20,9 @@ TOPO_RESTRICTED_FILE = PARAMETERS_PATH + "a2md_topo_bonded_model.json"
 TOPO_RESTRICTED_PARAMS = open_file(TOPO_RESTRICTED_FILE)
 with open(LIBRARY_PATH + '/parameters/symmetry_params.json') as f:
     SYMMETRY_PARAMETERS = json.load(f)
+
+LEBEDEV_DESIGN = dict(
+    tight=PARAMETERS_PATH + "lebedev_101.txt",
+    medium=PARAMETERS_PATH + "lebedev_053.txt",
+    coarse=PARAMETERS_PATH + "lebedev_027.txt"
+)
