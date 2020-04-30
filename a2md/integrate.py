@@ -48,7 +48,6 @@ def pi_lebedev(fun : Callable, r_max=10.0, radial_res=100, grid='medium'):
     from a2md import LEBEDEV_DESIGN
     lebedevdesgin = np.loadtxt(LEBEDEV_DESIGN[grid])
 
-
     lebedev = np.zeros((lebedevdesgin.shape[0], 3), dtype='float64')
     lebedev[:, 0] = np.cos(np.deg2rad(lebedevdesgin[:, 0])) * np.sin(np.deg2rad(lebedevdesgin[:, 1]))
     lebedev[:, 1] = np.sin(np.deg2rad(lebedevdesgin[:, 0])) * np.sin(np.deg2rad(lebedevdesgin[:, 1]))
@@ -78,3 +77,40 @@ def pi_lebedev(fun : Callable, r_max=10.0, radial_res=100, grid='medium'):
         integral +=  f.sum()
 
     return integral
+
+def integrate_density_functional(functional:Callable, mol:Mol2, grid='coarse', res=100):
+    functional_value = 0.0
+    for fx in split_space(mm=mol, fun=functional):
+        functional_value += pi_lebedev(fx, radial_res=res, grid=grid)
+    return functional_value
+
+def kinetic_energy_functional(fun:Callable):
+    cf = (3/10) * ((3 * np.pi**2)**(2/3))
+    ke = lambda x : cf * np.power(fun(x),5/3)
+    return ke
+
+def exchange_energy_functional(fun:Callable):
+    cx = -(3/4)*((3/np.pi)**(1/3))
+    xe = lambda x: cx * np.power(fun(x), 4 / 3)
+    return xe
+
+def mse_functional(ref : Callable, fun : Callable):
+    def mse(x):
+        rxf = ref(x)
+        fxf = fun(x)
+        return rxf * np.power(fxf - rxf, 2.0)
+    return mse
+
+def mlse_functional(ref : Callable, fun : Callable):
+    def mlse(x):
+        rxf = ref(x)
+        fxf = fun(x)
+        return rxf * np.log(np.power(fxf - rxf, 2.0))
+    return mlse
+
+def kullback_leibler_functional(ref : Callable, fun : Callable):
+    def dkl(x):
+        rxf = ref(x)
+        fxf = fun(x)
+        return fxf * np.log(fxf/rxf)
+    return dkl
