@@ -100,8 +100,8 @@ class Support(A2MDBaseClass) :
         :return: True
         """
         w /= np.linalg.norm(w)
-        B = np.zeros((3,3), dtype='float64')
-        new_x = np.cross(w,np.array([0, 0, 1], dtype='float64'))
+        B = np.zeros((3, 3), dtype='float64')
+        new_x = np.array([-w[1]-w[2], w[0], w[0]], dtype='float64')
         new_x /= np.linalg.norm(new_x)
         new_y = np.cross(w, new_x)
         B[:, 0] = new_x
