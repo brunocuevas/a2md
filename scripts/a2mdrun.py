@@ -158,7 +158,7 @@ def __fit_call(name, sample, opt_mode, regularization_constant, output, cluster,
         sample = np.load(sample)
     except FileNotFoundError:
         logger.error("could not find the {:s} file".format(sample))
-    except ValueError:
+    except OSError:
         try:
             logger.info("reading csv was unsuccesful. Trying csv")
             sample = np.loadtxt(sample)
@@ -409,6 +409,7 @@ cli.add_command(fit_many)
 cli.add_command(fit_collection)
 cli.add_command(update_mol2)
 cli.add_command(prepare_fit_many)
+cli.add_command(convert_sample)
 
 if __name__ == "__main__":
 
