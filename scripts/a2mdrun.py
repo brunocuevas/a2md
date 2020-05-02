@@ -238,9 +238,10 @@ def fit_many(names_file, opt_mode, regularization_constant, cluster, verbose):
 @click.option('--output_path', default=None, help="path for ppp files")
 @click.option('--filter_names', default=None, help="list of names to avoid")
 @click.option('--output_format', default='json', help="either json or txt")
+@click.option('--split', default=1, help="divide the output in n files")
 @click.argument('names')
 @click.argument('output_file')
-def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, filter_names, output_format):
+def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, filter_names, output_format, split):
     """
     prepares a set of files to run fit many
     """
@@ -266,13 +267,28 @@ def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, fi
         output.append(dict(
             mol2=mol2_str.format(n), sample=sample_str.format(n), output=output_str.format(n)
         ))
-    if output_format == 'json':
-        with open(output_file, "w") as f:
-            json.dump(output, f, indent=4, sort_keys=True)
-    elif output_format == 'txt':
-        with open(output_file, "w") as f:
-            for i, line in enumerate(output):
-                f.write('{:26s} {:26s} {:26s}\n'.format(line['mol2'], line['sample'], line['output']))
+
+    len_div = len(output) // split
+    lo = len(output) % split
+    if lo != 0:
+        split = split + 1
+
+    if split != 1:
+        output_file_format = output_file + '.{:02d}'
+    else:
+        output_file_format = output_file
+
+    for i in range(split):
+        current_chunk = output[i*len_div : (i+1)*len_div]
+        output_file = output_file_format.format(i)
+
+        if output_format == 'json':
+            with open(output_file, "w") as f:
+                json.dump(current_chunk, f, indent=4, sort_keys=True)
+        elif output_format == 'txt':
+            with open(output_file, "w") as f:
+                for line in current_chunk:
+                    f.write('{:26s} {:26s} {:26s}\n'.format(line['mol2'], line['sample'], line['output']))
     print("TE = {:8.4f}".format(time.time() - start))
 
 @click.command()
