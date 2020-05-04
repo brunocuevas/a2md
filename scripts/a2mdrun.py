@@ -83,9 +83,10 @@ def evaluate(name, param_file, coordinates, output):
     if output is None:
         for i in range(prediction.size):
             print(
-                "{:12:4e} {:12:4e} {:12:4e} {:12:4e}",
-                coordinates[i, 0], coordinates[i, 1],
-                coordinates[i, 2], prediction[i]
+                "{:12.4e} {:12.4e} {:12.4e} {:12.4e}".format(
+                    coordinates[i, 0], coordinates[i, 1],
+                    coordinates[i, 2], prediction[i]
+                )
             )
     else:
         # noinspection PyTypeChecker
@@ -127,6 +128,21 @@ def prepare_qm(name, charge, multiplicity, wfn, population, basis, method, nproc
         additional_commands=adcs, verbose=False
     )
     qmstp.write_g09(name.replace('.mol2', '.g09.input'), mm)
+
+    print("TE : {:12.4f}".format(time.time() - start))
+
+@click.command()
+@click.option('--output', default=None)
+@click.argument('name')
+def generate_ppp(name, output):
+    start = time.time()
+    if output is None:
+        output = name.replace('.mol2', '.ppp')
+    mm = Mol2(name)
+    dm = a2md_from_mol(mm)
+    dm.parametrize()
+    with open(output, "w") as f:
+        json.dump(dm.get_parametrization(), f, indent=4, sort_keys=True)
 
     print("TE : {:12.4f}".format(time.time() - start))
 
@@ -426,6 +442,7 @@ cli.add_command(fit_collection)
 cli.add_command(update_mol2)
 cli.add_command(prepare_fit_many)
 cli.add_command(convert_sample)
+cli.add_command(generate_ppp)
 
 if __name__ == "__main__":
 

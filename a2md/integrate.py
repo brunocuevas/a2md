@@ -114,3 +114,9 @@ def kullback_leibler_functional(ref : Callable, fun : Callable):
         fxf = fun(x)
         return fxf * np.log(fxf/rxf)
     return dkl
+
+def vdwvolume_functional(ref: Callable, eps=1e-3):
+    def vdwvol(x):
+        rxf = ref(x)
+        return (rxf > eps).astype(float)
+    return vdwvol
