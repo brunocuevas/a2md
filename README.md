@@ -18,45 +18,13 @@ The A2MD repository contains:
 - **a2mdtests**: small ensemble of molecules to test the methodology
 - **scripts**: the methodology turned into a cli set of tools
 
+Read the docs folder to learn to use the library and the CLI tools. 
+
 ## Dependencies
 
 - numpy
 - torch
-- torchani (1.1)
-
-## Why separated modules?
-
-The libraries were developped separately, at different times. There is not
-a real reason to keep them separated, so it is likely that in the future
-they get merged.
-
-## How to
-
-We suggest ti check the test folders within each module. Here we suggest how
-to use some of the useful scripts:
-
-Prediction of a density model can be made at the CLI easily using:
-
-	python3 ./scripts/a2mdnet predict --output foo.ppp foo.mol2
-
-Prediction of the electron density of an ensemble of models can be made using:
-
-	python3 ./scripts/a2md evaluate --coordinates coords.xyz foo.mol2 foo.ppp
-
-To visualize electron density, you can use the dx functionality
-
-	python3 ./scripts/a2md write_dx --output volume.dx foo.mol2 foo.ppp
-
-To obtain an electron density isosurface from an electron structure density, 
-you can use the Cdens executable:
-
-	./scripts/Cdens -i foo.wfn -u surface.csv -p 0.1 -r 10
-
-To fit an electron density model to a reference calculation, you can use
-the a2md script again.
-
-	python3 ./scripts/a2md fit --output foo.ppp --gaussian_output foo.out --reference surface.csv --symmetrize foo.mol2
-
+- torchani (1.2)
 
 ## Contact
 
