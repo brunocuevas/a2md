@@ -4,6 +4,7 @@ from a2md.integrate import mse_functional, kullback_leibler_functional, vdwvolum
 from a2mdio.molecules import Mol2
 from a2mdio.qm import WaveFunction
 import json
+import numpy as np
 import click
 import time
 import sys
@@ -85,9 +86,42 @@ def volume(name, reference, reference_type, epsilon, grid, resolution):
     print("{:24s} VOL(au) {:18.8e} {:8.4f}".format(reference, vol, time.time() - start))
 
 
+@click.command()
+@click.option('--reference_type', default='wfn', help='wfn or a2md')
+@click.option('--candidate_type', default='wfn', help='wfn or a2md')
+@click.option('--metric', default='mse', help='rmse, mse or mlse')
+@click.argument('name')
+@click.argument('reference')
+@click.argument('candidate')
+@click.argument('coordinates')
+def compare_sample(name, reference, candidate, coordinates, metric, reference_type, candidate_type):
+    start = time.time()
+    mm = Mol2(name)
+    if metric in ['mse', 'mlse', 'rmse']:
+        if metric == 'mse':
+            metric_function = lambda x,y : np.power((x - y), 2.0).sum()/x.shape[0]
+        elif metric == 'rmse':
+            metric_function = lambda x, y: np.sqrt(np.power((x - y), 2.0).sum() / x.shape[0])
+        elif metric == 'mlse':
+            metric_function = lambda x, y: np.log(np.power((x - y), 2.0)).sum() / x.shape[0]
+    else:
+        print("unkown metric. please, use either mse, rmse or mlse")
+        sys.exit()
+
+    coordinates = np.loadtxt(coordinates)
+
+    reference_d = admin_sources(mm, reference, reference_type)
+    candidate_d = admin_sources(mm, candidate, candidate_type)
+    reference_p = reference_d.eval(coordinates)
+    candidate_p = candidate_d.eval(coordinates)
+
+    value = metric_function(reference_p, candidate_p)
+    print("{:24s} {:24s} SAMPLE-{:s} {:18.8e} {:8.4f}".format(reference, candidate, metric, value, time.time() - start))
+
 cli.add_command(mse)
 cli.add_command(dkl)
 cli.add_command(volume)
+cli.add_command(compare_sample)
 
 if __name__ == '__main__':
     cli()

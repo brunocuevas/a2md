@@ -25,7 +25,7 @@ density.c
 const double OVERLAP = 3.0;
 const int MAX_ITERS= 10;
 const double LOG_TOLERANCE = 1e-3;
-const int symetry_index[10][3] = {
+const int symetry_index[20][3] = {
 	{ 0 , 0 , 0 }, // s
 	{ 1 , 0 , 0 }, // px
 	{ 0 , 1 , 0 }, // py
