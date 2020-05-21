@@ -408,7 +408,6 @@ def update_mol2(name, wfn, gaussian_log, output, charges):
     mm.write(output)
 
 @click.command()
-@click.option('--separator', default=',', help="symbol used to delimitate columns")
 @click.option('--input_type', default='csv', help='either csv or npy')
 @click.option('--output_type', default='npy', help="either csv or npy")
 @click.option('--random', default=False, help="permutates sample")
