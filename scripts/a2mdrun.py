@@ -388,11 +388,12 @@ def fit_collection(
     print("TE : {:12.4f}".format(time.time() - start))
 
 @click.command()
+@click.option('--charges', default='npa', help='either MK or NPA')
 @click.argument('name')
 @click.argument('wfn')
 @click.argument('gaussian_log')
 @click.argument('output')
-def update_mol2(name, wfn, gaussian_log, output):
+def update_mol2(name, wfn, gaussian_log, output, charges):
     """
     updates a mol2 file using npa charges from gaussian output and coordinates of a wfn
     """
@@ -400,25 +401,30 @@ def update_mol2(name, wfn, gaussian_log, output):
     from a2mdio.molecules import UNITS_TABLE
     mm = Mol2(name)
     wfn_instance = WaveFunction(file=wfn, prefetch_dm=False, verbose=False)
-    glog = GaussianLog(file=gaussian_log, verbose=False)
+    glog = GaussianLog(file=gaussian_log, method='', charges=charges, verbose=False)
+    gdict = glog.read()
     mm.coordinates = wfn_instance.get_coordinates() * UNITS_TABLE['au']['angstrom']
-    mm.charges = glog.get_charges(kind='partial')
+    mm.charges = np.array(gdict['charges'], dtype='float64')
     mm.write(output)
 
 @click.command()
 @click.option('--separator', default=',', help="symbol used to delimitate columns")
+@click.option('--input_type', default='csv', help='either csv or npy')
 @click.option('--output_type', default='npy', help="either csv or npy")
 @click.option('--random', default=False, help="permutates sample")
 @click.option('--npoints', default=None, help="chooses the first N points")
 @click.argument('name')
-def convert_sample(name, random, separator, output_type, npoints):
+def convert_sample(name, random, input_type, output_type, npoints):
     """
     simple and fast conversion from csv to npy and viceversa
     """
-    try:
+    if input_type == "npy":
         sample = np.load(name)
-    except ValueError:
+    elif input_type == "csv":
         sample = np.loadtxt(name)
+    else:
+        print("unrecognized format {:s}".format(input_type))
+        sys.exit()
 
     if random:
         n = sample.shape[0]

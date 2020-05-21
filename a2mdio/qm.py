@@ -477,258 +477,67 @@ class ElectronDensity(Volume):
 
 class GaussianLog(A2MDlibQM):
 
-    def __init__(self, file, verbose=True):
+    def __init__(self, file, method, charges, ep=False, verbose=True):
         """
 
         :param file:
         :param verbose:
         """
+        from a2mdio.parsers import std_coordinates
+        from a2mdio.parsers import npa_charges, mk_charges
+        from a2mdio.parsers import energy_decomposition, dipole
+        from a2mdio.parsers import hf_energy, mp2_energy, dft_energy
+        from a2mdio.parsers import electrostatic_potential
         A2MDlibQM.__init__(self, verbose=verbose, name='gaussianLog')
-        self.__basis = None
-        self.__coordinates = None
-        self.__atom_numbers = None
-        self.__dipolar = None
-        self.__E = None
-        self.__E2 = None
-        self.__energy_terms = None
-        self.__fname = file
-        self.__NPA = None
-        self.__NPT = None
-        self.read()
+        self.fname = file
+        tokkens = [
+            std_coordinates, dipole, energy_decomposition
+        ]
+        tokkens_labels = ['coordinates', 'dipole', 'energy_decomposition']
+        if method == 'MP2':
+            tokkens.append(mp2_energy)
+            tokkens_labels.append('energy')
+        elif method == 'HF' :
+            tokkens.append(hf_energy)
+            tokkens_labels.append('energy')
+        elif method[:3] == 'dft' :
+            tokkens.append(lambda x : dft_energy(x, functional=method[4:]))
+            tokkens_labels.append('energy')
 
-    def calculate_dipole(self):
-        """
+        if charges == 'NPA':
+            tokkens.append(npa_charges)
+            tokkens_labels.append('charges')
+        elif charges == 'MK' :
+            tokkens.append(mk_charges)
+            tokkens_labels.append('charges')
 
-        Calculates dipole from NPA charges
+        if ep:
+            tokkens.append(electrostatic_potential)
+            tokkens_labels.append('ep')
 
-        :return:
-        """
-        return np.sum(self.__coordinates * self.__NPA.reshape(
-            self.__coordinates.shape[0], 1
-        ), axis=0)
+        self.tokkens = tokkens
+        self.tokken_labels = tokkens_labels
 
     def read(self):
         """
 
         :return:
         """
-        coordinates_flag = False
-        coordinates_barrier = 0
-        charges_flag = False
-        charges_lock = True
+        output_dict = dict()
+        for label, tk in zip(self.tokken_labels, self.tokkens):
+            output_dict[label] = self.seek(tk)
+        return output_dict
 
-        coordinates = []
-        atom_numbers = []
-
-        natural_charges = []
-        natural_total_charges = []
-        with open(self.__fname) as f:
-            self.log('file opened')
-            for line in f:
-                line = line.strip()
-                if re.match('Standard\sorientation', line):
-                    coordinates = []
-                    atom_numbers = []
-                    coordinates_flag = True
-                    self.log('Reading coordinates')
-                    continue
-                if coordinates_flag:
-                    if re.match('-{5}', line):
-                        if coordinates_barrier == 2:
-                            coordinates_barrier = False
-                            coordinates_flag = False
-
-                            self.__coordinates = np.array(coordinates)
-                            self.__atom_numbers = np.array(atom_numbers)
-                            self.log('Reading coordinates - FINISHED - %d ATOMS' % len(atom_numbers))
-                        else:
-                            coordinates_barrier += 1
-                    elif re.match('Center\s*Atomic\s*Atomic\s*Coordinates\s\(Angstroms\)', line):
-                        pass
-                    elif re.match('Number\s*Number\s*Type\s*X\s*Y\s*Z', line):
-                        pass
-                    else:
-                        cnter, atmnmbr, atmtype, x, y, z = line.split()
-                        atmnmbr = int(atmnmbr)
-                        coordinates.append([
-                            float(x),
-                            float(y),
-                            float(z)
-                        ])
-                        atom_numbers.append(atmnmbr)
-                if re.match('Standard\sbasis:\s(.*)', line):
-                    m = re.match('Standard\sbasis:\s(.*)', line)
-                    self.__basis = m.group(1)
-                    self.log('Basis : %s' % m.group(1))
-                    continue
-                if re.match('SCF\sDone:\s*E\(RHF\)\s=(.*)\s*A\.U\.\safter\s*\d*\scycles', line):
-                    m = re.match('SCF\sDone:\s*E\(RHF\)\s=(.*)\s*A\.U\.\safter\s*\d*\scycles', line)
-                    self.__E = float(m.group(1).replace('D', 'E'))
-                    self.log('Hartree-Fock Energy = %8.4f' % float(m.group(1).replace('D', 'E')))
-                    continue
-                if re.match('E2\s=\s*(.*)\sEUMP2\s=\s*(.*)', line):
-                    m = re.match('E2\s=\s*(.*)\sEUMP2\s=\s*(.*)', line)
-                    self.__E2 = float(m.group(2).replace('D', 'E'))
-                    self.log('MP2 = %8.4f' % float(m.group(2).replace('D', 'E')))
-                    continue
-                if re.match('Natural Population', line) and charges_lock:
-                    charges_flag = True
-                    self.log('Reading NPA')
-                    continue
-                if charges_flag and charges_lock:
-                    if re.match('\s*Atom\s*No\s*Charge\s*Core\s*Valence\s*Rydberg\s*Total', line):
-                        pass
-                    elif re.match('-{5}', line):
-                        pass
-                    elif re.match('Natural -*', line):
-                        pass
-                    elif re.match('={5}', line):
-                        charges_flag = False
-                        charges_lock = False
-                        self.__NPA = np.array(natural_charges)
-                        self.__NPT = np.array(natural_total_charges)
-                        self.log('Reading NPA  - FINISHED')
-                    else:
-
-                        atmsymbl, no, charge, core, valence, rydberg, total = line.split()
-                        try:
-                            natural_charges.append(float(charge))
-                        except ValueError:
-                            pass
-                        natural_total_charges.append(float(total))
-                    continue
-                if re.match(r'^\s*X=\s*(-?\d*.\d*)\s*Y=\s*(-?\d*.\d*)\s*Z=\s*(-?\d*.\d*)', line):
-                    m = re.match(r'^\s*X=\s*(-?\d*.\d*)\s*Y=\s*(-?\d*.\d*)\s*Z=\s*(-?\d*.\d*)', line)
-                    dx = float(m.group(1))
-                    dy = float(m.group(2))
-                    dz = float(m.group(3))
-                    dipole = np.array([dx, dy, dz])
-                    self.__dipolar = dipole
-                    self.log('Dipole : %4.3f %4.3f %4.3f' % (dx, dy, dz))
-                    continue
-                if re.match(r'N-N=\s*(-?\d*.\d*D[+,-]\d{2})\s*E-N=\s*(-?\d*.\d*D[+,-]\d{2})\s*KE=\s*(-?\d*.\d*D[+,-]\d{2})\s*', line):
-                    m = re.match(r'N-N=\s*(-?\d*.\d*D[+,-]\d{2})\s*E-N=\s*(-?\d*.\d*D[+,-]\d{2})\s*KE=\s*(-?\d*.\d*D[+,-]\d{2})\s*', line)
-
-                    nn = float(m.group(1).replace('D', 'E'))
-                    ne = float(m.group(2).replace('D', 'E'))
-                    kin = float(m.group(3).replace('D', 'E'))
-
-                    self.__energy_terms = dict(
-                        nuclei_nuclei_potential=nn,
-                        nuclei_electron_potential=ne,
-                        kinetic=kin
-                    )
-
-                    self.log('Energy terms found :')
-                    self.log("\t{:30s}: {:12.4f} Ha".format(
-                            "Nuclei nuclei repulsion", self.__energy_terms['nuclei_nuclei_potential']
-                    ))
-                    self.log("\t{:30s}: {:12.4f} Ha".format(
-                        "Nuclei electron attraction", self.__energy_terms['nuclei_electron_potential']
-                    ))
-                    self.log("\t{:30s}: {:12.4f} Ha".format(
-                        "Kinetic energy", self.__energy_terms['kinetic']
-                    ))
-                    continue
-        return True
-
-    def seek_ep(self):
+    def seek(self, fun):
         """
 
-        Iterates over the file until it founds the electrostatic potential block. It does not read
-        the lines belonging to atoms. Output units are generally hartrees.
-
-        :return: electostatic potential
-        :rtype: np.ndarray
-        """
-        flag = False
-        ep = []
-        with open(self.__fname) as f:
-            i = 0
-            contents = f.readlines()
-            for i, line in enumerate(contents):
-                line = line.strip()
-                if re.match('Electrostatic Properties \(Atomic Units\)', line):
-                    self.log("found ep block")
-                    flag = True
-                    break
-            if flag:
-                for line in contents[i + 6:]:
-                    line = line.strip()
-                    if re.search(r'Atom', line):
-                        continue
-                    elif re.search(r'------', line):
-                        break
-                    else:
-                        ep.append(float(line.split()[1]))
-
-        return np.array(ep, dtype='float64')
-
-    def get_atomic_numbers(self):
-        """
-
-        :return: np.ndarray
-        """
-        return self.__atom_numbers.copy()
-
-    def get_energy_terms(self):
-        """
-
+        :param fun:
         :return:
         """
-        return self.__energy_terms
+        with open(self.fname) as f:
+            return fun(f.readlines())
 
-    def get_basis(self):
-        """
 
-        :return: basis employed in the QM calculation
-        """
-        return self.__basis
-
-    def get_charges(self, kind='partial'):
-        """
-
-        :param kind: either partial or total
-        :return:
-        """
-        if kind == 'partial':
-            return self.__NPA.copy()
-        elif kind == 'total':
-            return self.__NPT.copy()
-        else:
-            raise NotImplementedError("unknown charge type {:s}".format(kind))
-
-    def get_coordinates(self):
-        """
-
-        :return:
-        """
-        return self.__coordinates.copy()
-
-    def get_dipole(self):
-        """
-
-        :return:
-        """
-        return self.__dipolar.copy()
-
-    def get_energy(self, calctype='MP2'):
-        """
-
-        :param calctype: type of energy (HF or post-HF)
-        :return:
-        """
-        if calctype == 'MP2':
-            return self.__E2
-        elif calctype == 'RHF':
-            return self.__E
-
-    def get_total_charges(self):
-        """
-
-        :return:
-        """
-        return self.__NPT
 
 class CubeFile(A2MDlibQM):
     def __init__(self, file, verbose=False):
