@@ -38,30 +38,6 @@
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
           "_TYPE":"_SPHERIC"
-        },
-        {
-          "_NAME" : "B01",
-          "_PARAMS" : {
-            "A": 1.29,
-            "B": 2.1,
-            "alpha": 3.5
-          },
-          "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
-          "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
-        },
-        {
-          "_NAME" : "B02",
-          "_PARAMS" : {
-            "A": 1.29,
-            "B": 2.1,
-            "alpha": 1.75
-          },
-          "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
-          "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
         }
       ],
     "H" :
@@ -76,30 +52,6 @@
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
           "_TYPE":"_SPHERIC"
-        },
-        {
-          "_NAME" : "B01",
-          "_PARAMS" : {
-            "A": 0.92,
-            "B": 2.95,
-            "alpha": 0.6
-          },
-          "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
-          "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
-        },
-        {
-          "_NAME" : "B02",
-          "_PARAMS" : {
-            "A": 0.92,
-            "B": 2.95,
-            "alpha": 0.3
-          },
-          "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
-          "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
         }
     ],
     "N" :
@@ -136,30 +88,6 @@
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
           "_TYPE":"_SPHERIC"
-        },
-        {
-          "_NAME" : "B01",
-          "_PARAMS" : {
-            "A": 0.925,
-            "B": 2.94,
-            "alpha":3.5
-          },
-          "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
-          "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
-        },
-        {
-          "_NAME" : "B02",
-          "_PARAMS" : {
-            "A": 0.925,
-            "B": 2.94,
-            "alpha":1.75
-          },
-          "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
-          "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
         }
       ],
     "O" :
@@ -196,30 +124,6 @@
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
           "_TYPE":"_SPHERIC"
-        },
-        {
-          "_NAME" : "B01",
-          "_PARAMS" : {
-            "A": 0.55,
-            "B": 4.29,
-            "alpha": 3.5
-          },
-          "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
-          "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
-        },
-        {
-          "_NAME" : "B02",
-          "_PARAMS" : {
-            "A": 0.55,
-            "B": 4.29,
-            "alpha": 1.74
-          },
-          "_FROZEN" : false,
-          "_COEFFICIENT" : 0.0,
-          "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
         }
       ]
   }

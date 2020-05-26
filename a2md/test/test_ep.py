@@ -1,54 +1,23 @@
 import json
 import numpy as np
-from a2md.preprocessor import preprocessor
-from a2md.amd import A2MD
-from a2md.utils import element2an
-from a2md.preprocessor import symmetry_features
-from a2md import SYMMETRY_PARAMETERS
-from a2mdtests import gdb_test
-
-MOL2_FILE = gdb_test['gdb_000214']['path'] / gdb_test['gdb_000214']['mol2']
-TRAINING_FILE = gdb_test['gdb_000214']['path'] / list(gdb_test['gdb_000214']['surfaces'])[3]
-DX_FILE = r'C:\Users\Bruno\ownCloud\main\a2md\a2md\test\gdb_000214\gdb_000214_ep.dx'
-OPT_PARAMS = r'C:\Users\Bruno\ownCloud\main\a2md\a2md\test\gdb_000214\test_ep.ppp'
+from a2md.mathfunctions import short_generalized, long_generalized, pe_harmonic
+from a2md.mathfunctions import spherical_harmonic
+import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
+    t = np.arange(0.0, 2.1, 0.1) * np.pi
+    sph0 = spherical_harmonic(t, l=0)
+    sph1 = spherical_harmonic(t, l=1)
+    sph2 = spherical_harmonic(t, l=2)
+    sph3 = spherical_harmonic(t, l=3)
 
-    bps_featurizer = symmetry_features(file=MOL2_FILE)
-    radial_feats = bps_featurizer.get_radial_features(SYMMETRY_PARAMETERS['radial'])
+    r = np.arange(1.0, 5.0, 0.1)
+    B = 1.0
+    l = 1.0
+    P = 0.0
+    sg1 = short_generalized(r, B, l, P)
+    sg2 = long_generalized(r, B, l, P)
 
-    pp = preprocessor(
-        file=MOL2_FILE,
-        input_format='mol2'
-    )
-    pp.read_parameters(r'C:\Users\Bruno\ownCloud\main\a2md\a2md\parameters\amd_params_19')
-
-
-    wx, wc, top, pars = pp.parametrize(kind='frozen_core_gaussian')
-    an = np.array([element2an(i) for i in pp.get_labels()])
-
-    density_model = A2MD(
-        coordinates=wx,
-        charge=wc,
-        topology=top,
-        parameters=pars,
-        atomic_numbers=an,
-    )
-
-    training = np.loadtxt(TRAINING_FILE, delimiter=',', skiprows=1)
-    density_model.optimize(
-        target_coordinates=training[:, :3],
-        target_density=training[:, 3],
-        weigths=np.ones(training.shape[0]) / training.shape[0],
-        method='restricted',
-        atom_features=radial_feats
-
-    )
-    optimized_parameters = density_model.get_parametrization()
-    with open(OPT_PARAMS, 'w') as f:
-        json.dump(optimized_parameters, f, indent=4, sort_keys=True)
-
-    dx_density = density_model.eval_volume(extend=3.0, resolution=0.15, field='ep')
-    dx_density.write(DX_FILE)
-
-    density_model.save_model(file='gdb_000214.ca2md')
+    plt.plot(r, sg1, marker='.')
+    plt.plot(r, sg2, marker='x')
+    plt.show()

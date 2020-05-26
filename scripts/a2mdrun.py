@@ -25,9 +25,10 @@ def cli():
 @click.option('--output', default=None, help='file to save the info')
 @click.option('--expand', default=2.0, help='file to save the info')
 @click.option('--res', default=0.25, help='file to save the info')
+@click.option('--kind', default='density', help='either density or ep')
 @click.argument('name')
 @click.argument('param_file')
-def write_dx(name, param_file, output, expand, res):
+def write_dx(name, param_file, output, expand, res, kind):
     """
 
     writes a dx volume file with density from an a2md fit
@@ -42,7 +43,7 @@ def write_dx(name, param_file, output, expand, res):
     with open(param_file) as f:
         dm.read(json.load(f))
 
-    dx = dm.eval_volume(spacing=expand, resolution=res)
+    dx = dm.eval_volume(spacing=expand, resolution=res, kind=kind)
     if output is None:
         dx.write(name.replace('.mol2', '') + '.dx')
     else:
@@ -148,16 +149,17 @@ def generate_ppp(name, output):
 
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
+@click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
 @click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm')
 @click.option('--output', default=None, help="file where to store the output parameters")
 @click.option('--cluster', default=None, help="use rbf to clusterize by distance signature") # to modify in the future
 @click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
 @click.argument('name')
 @click.argument('sample')
-def fit(name, sample, opt_mode, regularization_constant, output, cluster, verbose):
-    __fit_call(name, sample, opt_mode, regularization_constant, output, cluster, verbose)
+def fit(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose):
+    __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose)
 
-def __fit_call(name, sample, opt_mode, regularization_constant, output, cluster, verbose):
+def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose):
     """
     ajusts the parameters of a density model to a sample of electron density
     """
@@ -181,13 +183,22 @@ def __fit_call(name, sample, opt_mode, regularization_constant, output, cluster,
         except ValueError:
             logger.error("could not read sample file neither as npy nor csv")
             sys.exit()
+    except ValueError:
+        sample = np.loadtxt(sample)
 
     logger.info("reading of mol2 and sample file was succesful")
     logger.info("defining model")
     dm = a2md_from_mol(mm)
     logger.info("parametrizing")
     try:
-        dm.parametrize()
+        if scheme == 'default': dm.parametrize()
+        elif scheme == 'extended' : dm.parametrize(dm.parametrization_extended)
+        elif scheme == 'harmonic' : dm.parametrize(dm.parametrization_harmonic)
+        elif scheme == 'iso': dm.parametrize(dm.parametrization_spherical)
+        else:
+            print("use a default, extended, harmonic or spheric scheme")
+            sys.exit(1)
+
     except RuntimeError:
         logger.error("there was some element which is not present in the input parameters")
         sys.exit()
@@ -225,10 +236,11 @@ def __fit_call(name, sample, opt_mode, regularization_constant, output, cluster,
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
 @click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm')
+@click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
 @click.option('--cluster', default=None, help="use rbf to clusterize by distance signature") # to modify in the future
 @click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
 @click.argument('names_file')
-def fit_many(names_file, opt_mode, regularization_constant, cluster, verbose):
+def fit_many(names_file, opt_mode, regularization_constant, scheme, cluster, verbose):
     """
     fits many compounds
     """
@@ -242,7 +254,7 @@ def fit_many(names_file, opt_mode, regularization_constant, cluster, verbose):
     for i, (m, s, o) in enumerate(zip(mol2_, sample_, out_)):
         __fit_call(
             m, s, opt_mode=opt_mode, regularization_constant=regularization_constant, output=o,
-            cluster=cluster, verbose=verbose
+            cluster=cluster, verbose=verbose, scheme=scheme
         )
     global_end = time.time()
     time_elapsed = global_end - global_start
@@ -311,12 +323,13 @@ def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, fi
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
 @click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm')
 @click.option('--segment_charges', default=None, help="allows to define position specific charges")
+@click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
 @click.argument('conformation_data')
 @click.argument('fitting_data')
 @click.argument('output_name')
 def fit_collection(
         conformation_data, fitting_data, output_name, opt_mode, regularization_constant,
-        segment_charges
+        segment_charges, scheme
 ):
     """
     adjusts the parameters of a density model using a wide range of conformations and densities
@@ -325,7 +338,6 @@ def fit_collection(
 
     from a2md.models import ConformerCollection
     from a2md.utils import topology_from_bonds
-    from a2md import PARAMETERS_PATH
 
     with open(conformation_data) as f:
         conformation_data = [i.strip() for i in f.readlines()]
@@ -369,10 +381,18 @@ def fit_collection(
 
         dm.set_regularization_constant(regularization_constant)
 
-    with open(PARAMETERS_PATH + "a2md_topo_bonded_model_extended.json") as f:
-        params = json.load(f)
 
-    dm.parametrize(param_dict=params)
+    if scheme == 'default':
+        dm.parametrize()
+    elif scheme == 'extended':
+        dm.parametrize(dm.parametrization_extended)
+    elif scheme == 'harmonic':
+        dm.parametrize(dm.parametrization_harmonic)
+    elif scheme == 'iso':
+        dm.parametrize(dm.parametrization_spherical)
+    else:
+        print("use a default, extended, harmonic or spheric scheme")
+        sys.exit(1)
     if opt_mode == 'semirestricted':
         dm.use_atomic_number_as_charge()
     if segment_charges is not None:

@@ -4,6 +4,7 @@ from a2md.mathfunctions import get_angle
 from a2md.mathfunctions import generalized_exponential, generalized_exponential_integral
 from a2md.mathfunctions import gaussian, angular_gaussian_integral
 from a2md.mathfunctions import electrostatic_potential_exp, electrostatic_potential_xexp_gaussian
+from a2md.mathfunctions import spherical_harmonic, pe_harmonic
 
 
 class Support(A2MDBaseClass) :
@@ -163,7 +164,8 @@ class SupportRadial(Support):
 
     def __eval_ep_outer(self, x):
         d = np.linalg.norm(x - self.coordinates, axis=1)
-        return electrostatic_potential_exp(self.__A, self.__B, d)
+        v = electrostatic_potential_exp(self.__A, self.__B, d)
+        return v
 
 
 class SupportAngular(Support):
@@ -215,6 +217,46 @@ class SupportAngular(Support):
             z,d = get_angle(x, center=self.coordinates, ref_frame=self.coordinate_system)
             u = electrostatic_potential_xexp_gaussian(self.__B, self.__alpha, d, z)
             return u * self.__A
+
+class SupportHarmonic(Support):
+    def __init__(self, **kwargs):
+        """
+
+        :param kwargs:
+        """
+        Support.__init__(self, **kwargs)
+        try :
+            self.__l = kwargs['l']
+            self.__B = kwargs['B']
+            self.__A = kwargs['A']
+            self.__P = kwargs['P']
+        except KeyError:
+            raise IOError("missing parameters Alpha|G|U")
+        self.eval_method = self.__eval_trigo
+        self.integral_method = self.__integral_harmonic
+        self.eval_ep_method = self.__eval_ep_harmonic
+        self.params_kw = ['l','B', 'A', 'P']
+        self.support_type = 'harmonic'
+        self.anisotropic = True
+
+    def __eval_trigo(self,x):
+        if self.coordinate_system is None:
+            raise RuntimeError("reference frame was not created. can not calculate angular function")
+        else:
+            z,d = get_angle(x, center=self.coordinates, ref_frame=self.coordinate_system)
+            radial_component=generalized_exponential(self.__A, self.__B, d, self.__P)
+            angular_component = spherical_harmonic(z, self.__l)
+            return radial_component * angular_component
+
+    @staticmethod
+    def __integral_harmonic():
+        return 0.0
+
+    def __eval_ep_harmonic(self, x):
+        z, d = get_angle(x, center=self.coordinates, ref_frame=self.coordinate_system)
+        v = pe_harmonic(d, z, self.__l, self.__P, self.__B) * self.__A
+        return v
+
 
 class SupportEnsemble(A2MDBaseClass):
 

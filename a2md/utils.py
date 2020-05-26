@@ -217,3 +217,21 @@ class RBFSymmetryCluster(ClusterTool):
         sb = [i.split("|") for i in sb]
         sb = [[int(i[0]), int(i[1])] for i in sb]
         return sa, sb
+
+def maptoconstraints(cp, x, q):
+
+    a = np.identity(cp.size + 1)
+    b = np.zeros(cp.size + 1)
+    b[:-1] = 2*cp
+    b[-1] = q
+    a[-1, -1] = 0.0
+    a = a * 2
+    a[-1, :-1] = x
+    a[:-1, -1] = x
+    c = np.linalg.solve(a, b)
+    return c[:-1]
+
+def project(g, x):
+    t1 = g.dot(x)
+    mod = np.linalg.norm(x)
+    return g - (t1 * x / (mod ** 2))

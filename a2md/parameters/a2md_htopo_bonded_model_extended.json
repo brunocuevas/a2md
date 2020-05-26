@@ -1,7 +1,7 @@
 {
-  "_NAME":"a2md-fc-topo_bonded_model",
+  "_NAME":"a2md-fc-htopo_bonded_model",
   "_VERSION":1.0,
-  "_DESCRIPTION":"Anisotropic Model of electron density including gaussian angular terms, frozen internal functions, and bonds between all atoms",
+  "_DESCRIPTION":"Anisotropic Model of electron density including harmonic angular terms, frozen internal functions, and topology bonds",
   "_MODEL":
   {
     "C" :
@@ -15,7 +15,7 @@
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "CVR",
@@ -26,7 +26,7 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "VR",
@@ -37,31 +37,46 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "B01",
           "_PARAMS" : {
             "A": 1.29,
             "B": 2.1,
-            "alpha": 3.5
+            "l": 1,
+            "P": 1
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
         },
         {
           "_NAME" : "B02",
           "_PARAMS" : {
             "A": 1.29,
             "B": 2.1,
-            "alpha": 1.75
+            "l": 2,
+            "P": 1
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
+        },
+                {
+          "_NAME" : "B03",
+          "_PARAMS" : {
+            "A": 1.29,
+            "B": 2.1,
+            "l": 3,
+            "P": 1
+          },
+          "_FROZEN" : false,
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+                  "_TYPE" : "_HARMONIC"
         }
       ],
     "H" :
@@ -82,24 +97,26 @@
           "_PARAMS" : {
             "A": 0.92,
             "B": 2.95,
-            "alpha": 0.6
+            "l": 1,
+            "P": 0
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE":"_HARMONIC"
         },
         {
           "_NAME" : "B02",
           "_PARAMS" : {
             "A": 0.92,
             "B": 2.95,
-            "alpha": 0.3
+            "l": 2,
+            "P": 0
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
         }
     ],
     "N" :
@@ -113,7 +130,7 @@
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "CVR",
@@ -124,7 +141,7 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "VR",
@@ -135,31 +152,46 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "B01",
           "_PARAMS" : {
             "A": 0.925,
             "B": 2.94,
-            "alpha":3.5
+            "l": 1,
+            "P": 1
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
         },
         {
           "_NAME" : "B02",
           "_PARAMS" : {
             "A": 0.925,
             "B": 2.94,
-            "alpha":1.75
+            "l": 2,
+            "P": 1
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
+        },
+        {
+          "_NAME" : "B03",
+          "_PARAMS" : {
+            "A": 0.925,
+            "B": 2.94,
+            "l": 3,
+            "P": 1
+          },
+          "_FROZEN" : false,
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TYPE" : "_HARMONIC"
         }
       ],
     "O" :
@@ -173,7 +205,7 @@
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "CVR",
@@ -184,7 +216,7 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "VR",
@@ -195,31 +227,46 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "B01",
           "_PARAMS" : {
             "A": 0.55,
             "B": 4.29,
-            "alpha": 3.5
+            "l": 1,
+            "P":1
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
         },
         {
           "_NAME" : "B02",
           "_PARAMS" : {
             "A": 0.55,
             "B": 4.29,
-            "alpha": 1.74
+            "l": 2,
+            "P": 1
           },
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
+        },
+        {
+          "_NAME" : "B03",
+          "_PARAMS" : {
+            "A": 0.55,
+            "B": 4.29,
+            "l": 3,
+            "P": 1
+          },
+          "_FROZEN" : false,
+          "_COEFFICIENT" : 0.0,
+          "_CONNECT" : "_TOPO",
+          "_TYPE" : "_HARMONIC"
         }
       ],
     "S": [
@@ -232,7 +279,7 @@
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "C2R",
@@ -243,7 +290,7 @@
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
             {
           "_NAME" : "CVR",
@@ -254,7 +301,7 @@
           "_FROZEN" : true,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-              "_TYPE":"_SPHERIC"
+              "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "VR",
@@ -265,7 +312,7 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 1.0,
           "_CONNECT" : "_NONE",
-          "_TYPE":"_SPHERIC"
+          "_TYPE" : "_SPHERIC"
         },
         {
           "_NAME" : "B01",
@@ -277,7 +324,7 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
         },
         {
           "_NAME" : "B02",
@@ -289,7 +336,7 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
         },
         {
           "_NAME" : "B0X",
@@ -302,7 +349,7 @@
           "_FROZEN" : false,
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
-          "_TYPE":"_GAUSSIAN"
+          "_TYPE" : "_HARMONIC"
         }
     ]
   }

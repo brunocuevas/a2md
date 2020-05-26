@@ -3,7 +3,9 @@ import copy
 from a2md.support import SupportRadial
 from a2md.support import SupportAngular
 from a2md.support import SupportEnsemble
-from a2md import TOPO_RESTRICTED_PARAMS
+from a2md.support import SupportHarmonic
+from a2md import TOPO_RESTRICTED_PARAMS, HARMONIC_TOPO_RESTRICTED_PARAMS, EXTENDED_TOPO_RESTRICTED_PARAMS
+from a2md import SPHERICAL_PARAMS
 from a2md.baseclass import A2MDBaseClass
 from a2mdio.molecules import Mol2, PDB
 from a2md.utils import convert_connectivity_tree_to_pairs
@@ -24,10 +26,11 @@ AN2ELEMENT = [
     '',  '',  '',  '', 'P', 'S',  '',   ''
 ]
 
-SUPPORT_TYPE = dict(
-    radial  = lambda args : SupportRadial(**args),
-    angular = lambda args : SupportAngular(**args)
-)
+SUPPORT_TYPE = {
+    "_SPHERIC"  : lambda args : SupportRadial(**args),
+    "_GAUSSIAN" : lambda args : SupportAngular(**args),
+    "_HARMONIC" : lambda  args : SupportHarmonic(**args)
+}
 
 def a2md_from_mol(mol : Mol2):
     """
@@ -84,6 +87,9 @@ def polymer_from_pdb(mol : PDB, chain : str ):
 
 class Molecule(A2MDBaseClass) :
     parametrization_default = TOPO_RESTRICTED_PARAMS
+    parametrization_harmonic = HARMONIC_TOPO_RESTRICTED_PARAMS
+    parametrization_extended = EXTENDED_TOPO_RESTRICTED_PARAMS
+    parametrization_spherical = SPHERICAL_PARAMS
     def __init__(
             self, coordinates, atomic_numbers, charge, topology, parameters=None, verbose=False,
             atom_labels=None, segments=None
@@ -119,6 +125,7 @@ class Molecule(A2MDBaseClass) :
         self.nfunctions = None
         self.atom_labels = atom_labels
         self.function_names = []
+        self.function_types = []
         self.regularization = 0.0001
         self.is_clusterized = False
         self.is_optimized = False
@@ -159,23 +166,24 @@ class Molecule(A2MDBaseClass) :
         map_frozenfunction = copy.copy(self.map_frozenfunctions)
         functions = copy.copy(self.functions)
         function_names = copy.copy(self.function_names)
-
+        function_types = copy.copy(self.function_types)
         expanded_fns = []
 
         for i in range(len(function_names)):
 
             bond_ = function_names[i][2]
             name_ = function_names[i][1]
+            type_ = function_types[i]
 
             expanded_fns.append(
                 dict(
-                    type=name_,
+                    type=type_,
                     center=function_names[i][0],
                     bond=bond_,
                     name=name_
                 )
             )
-            del bond_, name_
+            del bond_, name_, type_
 
         # Clusterize charges
 
@@ -192,6 +200,7 @@ class Molecule(A2MDBaseClass) :
         new_map2atom = []
         new_names = []
         new_frozenfunction = []
+        new_functiontypes = []
 
         # Part 1, cluster isotropic functions
 
@@ -199,28 +208,28 @@ class Molecule(A2MDBaseClass) :
 
             # Part 1.1. Find types of functions
 
-            current_cluster_function_types = []
+            current_cluster_function_names = []
             for atom_idx in cluster:
-                for i, fun_name in enumerate(expanded_fns):
-                    c1 = fun_name['center'] == atom_idx
-                    c2 = fun_name['type'] not in current_cluster_function_types
-                    c3 = fun_name['bond'] is None
+                for i, fun_info in enumerate(expanded_fns):
+                    c1 = fun_info['center'] == atom_idx
+                    c2 = fun_info['name'] not in current_cluster_function_names
+                    c3 = fun_info['bond'] is None
                     if all([c1, c2, c3]):
-                        current_cluster_function_types.append(fun_name['type'])
+                        current_cluster_function_names.append(fun_info['name'])
                     del c1, c2, c3
 
             # Part 1.1. Cluster isotropic functions
 
-            for fun_type in current_cluster_function_types:
+            for fun_name in current_cluster_function_names:
                 is_frozen = []
                 current_cluster_functions = []
                 current_map2atoms = []
                 current_map2bonds = []
                 for atom_idx in cluster:
-                    for i, fun_name in enumerate(expanded_fns):
-                        c1 = fun_name['center'] == atom_idx
-                        c2 = fun_name['type'] == fun_type
-                        c3 = fun_name['bond'] is None
+                    for i, fun_info in enumerate(expanded_fns):
+                        c1 = fun_info['center'] == atom_idx
+                        c2 = fun_info['name'] == fun_name
+                        c3 = fun_info['bond'] is None
                         if all([c1, c2, c3]):
                             current_cluster_functions.append(functions[i])
                             is_frozen.append(map_frozenfunction[i])
@@ -232,7 +241,7 @@ class Molecule(A2MDBaseClass) :
                 new_functions.append(
                     SupportEnsemble(
                         functions=current_cluster_functions,
-                        name="ensemble_c{:d}_f{:s}".format(cluster_idx, fun_type),
+                        name="ensemble_c{:d}_f{:s}".format(cluster_idx, fun_name),
                         map2atoms=current_map2atoms, map2bonds=current_map2bonds
                     )
                 )
@@ -241,8 +250,9 @@ class Molecule(A2MDBaseClass) :
                     self.log("there are hetereogeneous functions in the current group")
 
                 new_frozenfunction.append(all(is_frozen))
-                new_names.append([cluster_idx, "ENS_{:s}".format(fun_type)])
+                new_names.append([cluster_idx, "ENS_{:s}".format(fun_name)])
                 new_map2atom.append(cluster_idx)
+                new_functiontypes.append("_SPHERICAL")  # Harcoded
 
 
         # Part 2, cluster  anisotropic functions
@@ -254,66 +264,86 @@ class Molecule(A2MDBaseClass) :
             cluster_0 = sa[bond_cluster[0]]
             cluster_1 = sa[bond_cluster[1]]
             # only functions that come from cluster 0 are required
+            current_cluster_function_names = []
             current_cluster_function_types = []
             for atom_idx in cluster_0:
 
-                for i, fun_name in enumerate(expanded_fns):
-                    c1 = fun_name['center'] == atom_idx
-                    c2 = fun_name['type'] not in current_cluster_function_types
-                    c3 = fun_name['bond'] in cluster_1
+                for i, fun_info in enumerate(expanded_fns):
+                    c1 = fun_info['center'] == atom_idx
+                    c2 = fun_info['name'] not in current_cluster_function_names
+                    c3 = fun_info['bond'] in cluster_1
                     if all([c1, c2, c3]):
-                        current_cluster_function_types.append(fun_name['type'])
+                        current_cluster_function_names.append(fun_info['name'])
+                        current_cluster_function_types.append(fun_info['type'])
                     del c1, c2, c3
 
 
-            for fun_type in current_cluster_function_types:
+            for fun_name, fun_type in zip(current_cluster_function_names, current_cluster_function_types):
                 current_cluster_functions = []
                 current_map2atoms = []
                 current_map2bonds = []
                 for atom_idx in cluster_0:
-                    for i, fun_name in enumerate(expanded_fns):
-                        c1 = fun_name['center'] == atom_idx
-                        c2 = fun_name['type'] == fun_type
-                        c3 = fun_name['bond'] in cluster_1
+                    for i, fun_info in enumerate(expanded_fns):
+                        c1 = fun_info['center'] == atom_idx
+                        c2 = fun_info['name'] == fun_name
+                        c3 = fun_info['bond'] in cluster_1
                         if all([c1, c2, c3]):
                             current_cluster_functions.append(functions[i])
                             current_map2atoms.append(atom_idx)
-                            current_map2bonds.append(fun_name['bond'])
+                            current_map2bonds.append(fun_info['bond'])
                         del c1, c2, c3
 
                 new_functions.append(
                     SupportEnsemble(
                         functions=current_cluster_functions,
-                        name="ensemble_c{:d}_f{:s}_b{:d}".format(bond_cluster[0], fun_type, bond_cluster[1]),
+                        name="ensemble_c{:d}_f{:s}_b{:d}".format(bond_cluster[0], fun_name, bond_cluster[1]),
                         map2atoms=current_map2atoms, map2bonds=current_map2bonds
                     )
                 )
-                new_names.append([bond_cluster[0], "ENS_{:s}".format(fun_type), bond_cluster[1]])
+                new_names.append([bond_cluster[0], "ENS_{:s}".format(fun_name), bond_cluster[1]])
                 new_map2atom.append(bond_cluster[0])
                 new_frozenfunction.append(False)
+                new_functiontypes.append(fun_type)
 
         self.natoms = len(sa)
         self.atom_charges = new_atom_charges
         self.map_function2center = new_map2atom
         self.map_frozenfunctions = new_frozenfunction
         self.function_names = new_names
+        self.function_types = new_functiontypes
         self.functions = new_functions
         self.opt_params = np.zeros(len(sa), dtype="float64")
         self.nfunctions = len(new_functions)
         self.is_clusterized = True
 
-    def eval(self, x):
+    def eval(self, x, kind='density'):
         """
         Evaluation of aAMD at defined coordinates
 
         :param x: cartessian coordinates
+        :param kind: either density or ep
         :type x: np.ndarray
         :return: density values
         :type: np.ndarray
         """
         d = np.zeros(x.shape[0])
-        for sup, c in zip(self.functions, self.opt_params) :
-            d += c * sup.eval(x)
+        for i, (sup, c) in enumerate(zip(self.functions, self.opt_params)):
+            if kind == 'density':
+                d += c * sup.eval(x)
+            elif kind == 'ep':
+                d -= c * sup.eval_ep(x)
+            else:
+                raise NotImplementedError("only density or ep")
+
+        if kind == 'ep':
+            d += self.eval_nuclear_potential(x)
+
+        return d
+
+    def eval_by_fun(self, x, i):
+        sup = self.functions[i]
+        c = self.opt_params[i]
+        d = c * sup.eval(x)
         return d
 
     def eval_core(self, x):
@@ -322,18 +352,28 @@ class Molecule(A2MDBaseClass) :
             if f: d += c * sup.eval(x)
         return d
 
-    def eval_by_type(self, x, fun_type):
+    def eval_by_name(self, x, fun_name):
         d = np.zeros(x.shape[0])
         for sup, c, name in zip(self.functions, self.opt_params, self.function_names):
-            if name[1] in fun_type:
+            if name[1] in fun_name:
                 d += c * sup.eval(x)
         return d
 
-    def eval_volume(self, spacing, resolution):
+    def eval_nuclear_potential(self, x):
+        r = self.coordinates.copy()
+        v = np.zeros(x.shape[0], dtype='float64')
+        for i, z in enumerate(self.atomic_numbers):
+            d = x - r[i, :].reshape(1, -1)
+            d = np.linalg.norm(d, axis=1) + 1e-18
+            v += z/d
+        return v
+
+    def eval_volume(self, spacing, resolution, kind='density'):
         """
 
         :param spacing:
         :param resolution:
+        :param kind:
         :return:
         """
         from a2mdio.qm import ElectronDensity
@@ -345,6 +385,7 @@ class Molecule(A2MDBaseClass) :
         zz = np.arange(minz, maxz, resolution)
 
         dx = np.zeros((xx.size, yy.size, zz.size))
+        f = lambda x : self.eval(x, kind=kind)
 
         for ix in range(xx.size):
             r = np.zeros((zz.size, 3), dtype='float64')
@@ -352,7 +393,7 @@ class Molecule(A2MDBaseClass) :
             for iy in range(yy.size):
                 r[:, 1] = yy[iy]
                 r[:, 2] = zz[:]
-                dx[ix, iy, :] = self.eval(r)
+                dx[ix, iy, :] = f(r)
 
         vol_density = ElectronDensity(verbose=False)
         vol_density.set_r0(np.array([minx, miny, minz]) * 0.5292)
@@ -375,16 +416,18 @@ class Molecule(A2MDBaseClass) :
         new_names = []
         new_frozenfunction = []
         new_coefficients = []
+        new_types = []
 
-        for i, (ensemble, name, isfrozen) in enumerate(
-                zip(self.functions, self.function_names, self.map_frozenfunctions)
+        for i, (ensemble, name, isfrozen, function_type) in enumerate(
+                zip(self.functions, self.function_names, self.map_frozenfunctions, self.function_types)
         ):
-            function_type = name[1].split("_")[1]
+            function_name = name[1].split("_")[1]
             for j, (fun, fun_atom, fun_bond) in enumerate(zip(ensemble.fun, ensemble.map2atoms, ensemble.map2bonds)):
                 new_functions.append(fun)
                 new_map2atom.append(fun_atom)
                 new_frozenfunction.append(isfrozen)
-                new_names.append([fun_atom, function_type, fun_bond])
+                new_names.append([fun_atom, function_name, fun_bond])
+                new_types.append(function_type)
                 if self.is_optimized:
                     new_coefficients.append(self.opt_params[i])
                 else:
@@ -395,6 +438,7 @@ class Molecule(A2MDBaseClass) :
         self.map_function2center = new_map2atom
         self.map_frozenfunctions = new_frozenfunction
         self.function_names = new_names
+        self.function_types = new_types
         self.functions = new_functions
         self.nfunctions = len(new_functions)
         self.opt_params = new_coefficients
@@ -439,6 +483,52 @@ class Molecule(A2MDBaseClass) :
         """
         return self.regularization
 
+    def get_integrals(self):
+        """
+
+        :return:
+        """
+        integrals = np.zeros(len(self.functions), dtype='float64')
+        for i, fun in enumerate(self.functions):
+            integrals[i] = fun.integral()
+        return integrals
+
+    def get_frozen_integrals(self):
+        """
+
+        :return:
+        """
+        integrals = []
+        for i, fun in enumerate(self.functions):
+            if self.map_frozenfunctions[i]:
+                integrals.append(fun.integral())
+        return np.array(integrals, dtype='float64')
+
+    def get_unfrozen_integrals(self):
+        """
+
+        :return:
+        """
+        integrals = []
+        for i, fun in enumerate(self.functions):
+            if not self.map_frozenfunctions[i]:
+                integrals.append(fun.integral())
+        return np.array(integrals, dtype='float64')
+
+    def get_number_functions(self):
+        return len(self.functions)
+
+    def get_number_optimizable_functions(self):
+        j = 0
+        for i in self.map_frozenfunctions:
+            if not i:
+                j += 1
+        return j
+
+    def get_opt_coefficients(self):
+        f = np.array(self.map_frozenfunctions)
+        return self.opt_params[f == False]
+
     def get_parametrization(self):
         """
         This method allows to create a list of function parameters
@@ -449,10 +539,10 @@ class Molecule(A2MDBaseClass) :
         atom_parametrization_list = [None] * self.nfunctions
 
         xi_iter = 0
-        for xi, fn, cc in zip(self.functions, self.function_names, self.opt_params) :
+        for xi, fn, cc, tp in zip(self.functions, self.function_names, self.opt_params, self.function_types):
 
             xi_params = xi.get_params()
-            tmp_input = dict(center = fn[0], support_type = fn[1], coefficient=cc)
+            tmp_input = dict(center = fn[0], support_type = fn[1], coefficient=cc, function_type=tp)
             tmp_params = dict()
             for key, item in xi_params.items() :
                 tmp_params[key] = item
@@ -610,6 +700,7 @@ class Molecule(A2MDBaseClass) :
         self.functions = []
         self.function_names = []
         self.map_frozenfunctions = []
+        self.function_types = []
         self.opt_params = []
 
         symbols = [i for i in self.get_symbols()]
@@ -628,9 +719,11 @@ class Molecule(A2MDBaseClass) :
                     self.function_names.append((i, fun['_NAME'], None))
                     self.map_frozenfunctions.append(fun['_FROZEN'])
                     self.opt_params.append(fun['_COEFFICIENT'])
+                    self.function_types.append(fun['_TYPE'])
                     ppp = copy.copy(fun['_PARAMS'])
                     ppp['coordinates'] = self.coordinates[i, :]
-                    self.functions.append(SUPPORT_TYPE['radial'](ppp))
+                    funtype = SUPPORT_TYPE[fun['_TYPE']]
+                    self.functions.append(funtype(ppp))
 
                 elif fun['_CONNECT'] == '_TOPO':
 
@@ -639,11 +732,14 @@ class Molecule(A2MDBaseClass) :
                         self.function_names.append((i, fun['_NAME'], bond))
                         self.map_frozenfunctions.append(fun['_FROZEN'])
                         self.opt_params.append(fun['_COEFFICIENT'])
+                        self.function_types.append(fun['_TYPE'])
                         bonding_axis = self.coordinates[bond, :] - self.coordinates[i, :]
                         ppp = copy.copy(fun['_PARAMS'])
                         ppp['coordinates'] = self.coordinates[i, :]
-                        self.functions.append(SUPPORT_TYPE['angular'](ppp))
+                        funtype = SUPPORT_TYPE[fun['_TYPE']]
+                        self.functions.append(funtype(ppp))
                         self.functions[-1].set_reference_frame(bonding_axis)
+
 
         self.nfunctions = len(self.functions)
         return True
@@ -666,6 +762,7 @@ class Molecule(A2MDBaseClass) :
         map_fun2center = []
         map_funfrozen = []
         function_names = []
+        function_types = []
         for xi_iter in range(len(params)) :
             ppp = params[xi_iter]
             map_fun2center.append(ppp['center'])
@@ -677,9 +774,15 @@ class Molecule(A2MDBaseClass) :
             input_dict = copy.copy(ppp['params'])
             input_dict['coordinates'] = self.coordinates[ppp['center'], :]
             if ppp['bond'] is None:
-                support_function = SUPPORT_TYPE['radial']
+                support_function = SUPPORT_TYPE['_SPHERIC']
+                function_types.append('_SPHERIC')  # Hardcoded
             else:
-                support_function = SUPPORT_TYPE['angular']
+                try:
+                    support_function = SUPPORT_TYPE[ppp['function_type']]
+                    function_types.append(ppp['function_type'])
+                except KeyError:
+                    support_function = SUPPORT_TYPE['_GAUSSIAN']  # for the sake of retrocompatibility
+                    function_types.append('_GAUSSIAN')
             function_list.append(support_function(input_dict))
             if not ppp['bond'] is None :
 
@@ -694,6 +797,7 @@ class Molecule(A2MDBaseClass) :
         self.map_function2center = map_fun2center
         self.map_frozenfunctions = map_funfrozen
         self.function_names = function_names
+        self.function_types = function_types
         self.nfunctions = len(opt_params)
 
     def set_regularization_constant(self, gamma):
@@ -703,6 +807,10 @@ class Molecule(A2MDBaseClass) :
         :return:
         """
         self.regularization = gamma
+
+    def set_opt_coefficients(self, c):
+        f = np.array(self.map_frozenfunctions)
+        self.opt_params[f == False] = c
 
     def use_atomic_number_as_charge(self):
         """

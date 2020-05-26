@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.special import erfi, erf, expi, gamma
+from scipy.special import erfi, erf, expi, gamma, gammaincc
 
 INVERSE_DIST_DUMPING = 1e-3
 
@@ -300,3 +300,53 @@ def electrostatic_potential_xexp_gaussian(G, alpha, d, z):
         u_p = P(l)
         electrostatic_potential_buffer = electrostatic_potential_buffer + (u_rad * u_ang * u_p)
     return electrostatic_potential_buffer
+
+def yl1m0(t):
+    return np.cos(t)
+
+def yl2m0(t):
+    x = np.cos(t)
+    return 0.5 * (3 * (x * x) - 1)
+
+def yl3m0(t):
+    x = np.cos(t)
+    return 0.5 * (5 * (x ** 3) - 3 * x)
+
+def spherical_harmonic(t, l):
+    if l == 0:
+        return np.ones(t.size, dtype='float64')
+    elif l == 1:
+        return yl1m0(t)
+    elif l == 2:
+        return yl2m0(t)
+    elif l == 3:
+        return yl3m0(t)
+    else:
+        raise NotImplementedError("only implemented up to l = 3")
+
+def short_generalized(r, B, l, P):
+    term1 = r ** (2 + P)
+    term2 = (B * r) ** (-3 - l - P)
+    term31 = gamma(3 + l + P)
+    term32 = gammaincc(3 + l + P, B * r) * gamma(3 + l + P)
+    return term1 * term2 * (term31 - term32)
+
+def long_generalized(r, B, l, P):
+    factor = (r ** l) / (B ** 3)
+    term1 = (B ** (l - P)) * gamma(3 - l + P)
+    term21 = (r**(-l+P)) * ((B*r)**(l -P))
+    term22 = -gamma(3 - l + P) + gammaincc(3-l+P, B*r) * gamma(3-l+P)
+    return (term1 + term21 * term22) * factor
+
+def pe_harmonic(r, t, l, P, B):
+    factor = (4*np.pi)/((2 * l) + 1)
+    radial = short_generalized(r, B, l, P) + long_generalized(r, B, l, P)
+    u = np.cos(t)
+    if l == 1 :
+        return u * factor * radial
+    elif l == 2 :
+        return factor * radial * ((3.0 * u**2) - 1.0) / 2.0
+    elif l == 3 :
+        return factor * radial * ((5.0 * u**3) - (3.0 * u)) / 2.0
+    else:
+        raise NotImplementedError("only implemented for 0 < l < 4")

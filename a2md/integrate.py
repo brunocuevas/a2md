@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Callable
 from a2mdio.molecules import Mol2
+from a2md.models import Molecule
 
 def voronoi(x : np.ndarray, r : np.ndarray):
     """
@@ -78,10 +79,55 @@ def pi_lebedev(fun : Callable, r_max=10.0, radial_res=100, grid='medium'):
 
     return integral
 
+def pi_lebedev_m(fun : Callable, n_out : int, r_max=10.0, radial_res=100, grid='coarse'):
+    from a2md import LEBEDEV_DESIGN
+    lebedevdesgin = np.loadtxt(LEBEDEV_DESIGN[grid])
+
+    lebedev = np.zeros((lebedevdesgin.shape[0], 3), dtype='float64')
+    lebedev[:, 0] = np.cos(np.deg2rad(lebedevdesgin[:, 0])) * np.sin(np.deg2rad(lebedevdesgin[:, 1]))
+    lebedev[:, 1] = np.sin(np.deg2rad(lebedevdesgin[:, 0])) * np.sin(np.deg2rad(lebedevdesgin[:, 1]))
+    lebedev[:, 2] = np.cos(np.deg2rad(lebedevdesgin[:, 1]))
+
+    w = lebedevdesgin[:, 2].reshape(-1, 1)
+    u = np.log(r_max + 1) / radial_res
+    r_grid = np.exp(np.arange(1, radial_res + 1) * u) - 1
+    integral = np.zeros(n_out, dtype='float64')
+    for i, r in enumerate(r_grid):
+        dr = r - (np.exp(u * i) - 1)
+        r2 = r
+        r1 = r - 0.5 * dr
+        r0 = r - dr
+
+        dv = ((r ** 3) / 3) - (((r - dr) ** 3) / 3)
+
+        coords = r0 * lebedev
+        f00 = fun(coords)
+        coords = r1 * lebedev
+        f01 = fun(coords)
+        coords = r2 * lebedev
+        f02 = fun(coords)
+
+        f = (f00 + 4 * f01 + f02) / 6
+        f = f * w * dv * 4 * np.pi
+        integral += f.sum(0)
+
+    return integral
+
+
 def integrate_density_functional(functional:Callable, mol:Mol2, grid='coarse', res=100):
     functional_value = 0.0
     for fx in split_space(mm=mol, fun=functional):
         functional_value += pi_lebedev(fx, radial_res=res, grid=grid)
+    return functional_value
+
+def integrate_density_functional_gradient(functional:Callable, mol:Mol2, nfuns:int, grid='coarse', res=100):
+    r = mol.get_coordinates(units='au')
+    n = mol.get_number_atoms()
+    functional_value = np.zeros(nfuns, dtype='float64')
+    for i in range(n):
+        r0 = r[i, :]
+        fx = lambda x : functional(x + r0) * (voronoi(x + r0, r) == i).reshape(-1, 1)
+        functional_value += pi_lebedev_m(fx, nfuns, radial_res=res, grid=grid)
     return functional_value
 
 def kinetic_energy_functional(fun:Callable):
@@ -120,3 +166,17 @@ def vdwvolume_functional(ref: Callable, eps=1e-3):
         rxf = ref(x)
         return (rxf > eps).astype(float)
     return vdwvol
+
+def dkl_gradient_functional(ref : Callable, model : Molecule):
+    nopt = model.get_number_optimizable_functions()
+    nfuns = model.get_number_functions()
+    def dkl_gradient(x):
+        u = np.zeros((x.shape[0], nopt), dtype='float64')
+        pref = ref(x)
+        cand = model.eval(x)
+        lp = np.log(cand / pref) + 1
+        indx = [i for i in range(nfuns) if not model.map_frozenfunctions[i]]
+        for idx, fun_idx in enumerate(indx):
+            u[:, idx] = model.functions[fun_idx].eval(x) * lp
+        return u
+    return dkl_gradient
