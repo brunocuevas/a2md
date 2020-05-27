@@ -150,7 +150,7 @@ def generate_ppp(name, output):
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
 @click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
-@click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm')
+@click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm', type=float)
 @click.option('--output', default=None, help="file where to store the output parameters")
 @click.option('--cluster', default=None, help="use rbf to clusterize by distance signature") # to modify in the future
 @click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
@@ -235,7 +235,7 @@ def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, 
 
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
-@click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm')
+@click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm', type=float)
 @click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
 @click.option('--cluster', default=None, help="use rbf to clusterize by distance signature") # to modify in the future
 @click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
@@ -321,7 +321,7 @@ def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, fi
 
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
-@click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm')
+@click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm', type=float)
 @click.option('--segment_charges', default=None, help="allows to define position specific charges")
 @click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
 @click.argument('conformation_data')
