@@ -217,7 +217,7 @@ def ep_xg_radial3(G, d):
     return p3 + u3
 
 
-def ep_xg_angular0(alpha):
+def ep_xg_angular0(alpha, z):
     """
 
     :param alpha:

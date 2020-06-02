@@ -35,5 +35,9 @@ if __name__ == "__main__":
     with open("benzene.ppp") as f:
         dm.read(json.load(f))
     q2 = dm.integrate()
+
+    dx = dm.eval_volume(spacing=2.0, resolution=0.25, kind='ep')
+    dx.write('benzene_gau.dx')
+
     print("{:4.3f}, {:4.3f}".format(q1, q2))
     print("DONE!")

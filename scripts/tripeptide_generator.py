@@ -19,8 +19,8 @@ def generate_peptide(sequence, sample, output, seed, number):
     start = time.time()
     set_seed(seed)
 
-    pept = Peptide(sequence.upper(), nterm="neutral", cterm="neutral")
     for i in range(number):
+        pept = Peptide(sequence.upper(), nterm="neutral", cterm="neutral")
         pept.sample_bb_angles(sample)
         if sequence[sample] != "P":
             pept.sample_chi_angles(sample)
@@ -30,8 +30,10 @@ def generate_peptide(sequence, sample, output, seed, number):
             name = output + '_{:06d}.pdb'.format(i)
 
         pept.write_pdb(str(name))
+        bb = pept.get_bb_angles(2)
+        print(bb)
 
-    print("TE : {:12.4f}".format(time.time() - start))
+    # print("TE : {:12.4f}".format(time.time() - start))
     return  True
 
 cli.add_command(generate_peptide)
