@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.special import erfi, erf, expi, gamma, gammaincc
+from scipy.special import erfi, erf, expi, gamma, gammaincc, exp1
 
 INVERSE_DIST_DUMPING = 1e-3
 
@@ -312,6 +312,9 @@ def yl3m0(t):
     x = np.cos(t)
     return 0.5 * (5 * (x ** 3) - 3 * x)
 
+def inc_gamma(a, x):
+    return exp1(x) if a == 0 else gamma(a)*gammaincc(a, x)
+
 def spherical_harmonic(t, l):
     if l == 0:
         return np.ones(t.size, dtype='float64')
@@ -332,11 +335,17 @@ def short_generalized(r, B, l, P):
     return term1 * term2 * (term31 - term32)
 
 def long_generalized(r, B, l, P):
-    factor = (r ** l) / (B ** 3)
-    term1 = (B ** (l - P)) * gamma(3 - l + P)
-    term21 = (r**(-l+P)) * ((B*r)**(l -P))
-    term22 = -gamma(3 - l + P) + gammaincc(3-l+P, B*r) * gamma(3-l+P)
-    return (term1 + term21 * term22) * factor
+    if 2 - l + P > 0:
+        factor = (r ** l) / (B ** 2)
+        term1 = (B ** (l - P)) * gamma(2 - l + P)
+        term21 = (r ** (-l + P)) * ((B * r)**(l - P))
+        term22 = -gamma(2 - l + P) + gammaincc(2-l+P, B*r) * gamma(2-l+P)
+        return (term1 + term21 * term22) * factor
+    else:
+        if 2 - l + P == 0:
+            return (r ** l) * inc_gamma(0, B * r)
+        if 2 - l + P == -1:
+            return (r ** l) * ((np.exp(-B*r)/r) - B * inc_gamma(0, B*r))
 
 def pe_harmonic(r, t, l, P, B):
     factor = (4*np.pi)/((2 * l) + 1)

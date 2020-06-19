@@ -143,6 +143,9 @@ class QmSetUp(A2MDlib):
         xyz.append("*")
         xyz = '\n'.join(xyz)
         orca_input_contents = '\n'.join([header, name, xyz])
+        with open(filename, 'w') as f:
+            f.write(orca_input_contents)
+
         return orca_input_contents
 
 

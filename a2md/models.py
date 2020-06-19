@@ -368,12 +368,13 @@ class Molecule(A2MDBaseClass) :
             v += z/d
         return v
 
-    def eval_volume(self, spacing, resolution, kind='density'):
+    def eval_volume(self, spacing, resolution, kind='density', cutoff=None):
         """
 
         :param spacing:
         :param resolution:
         :param kind:
+        :param cutoff:
         :return:
         """
         from a2mdio.qm import ElectronDensity
@@ -385,7 +386,13 @@ class Molecule(A2MDBaseClass) :
         zz = np.arange(minz, maxz, resolution)
 
         dx = np.zeros((xx.size, yy.size, zz.size))
-        f = lambda x : self.eval(x, kind=kind)
+        if cutoff is None:
+            f = lambda x : self.eval(x, kind=kind)
+        else:
+            def f(x):
+                p = self.eval(x, kind=kind)
+                p[p>cutoff] = cutoff
+                return p
 
         for ix in range(xx.size):
             r = np.zeros((zz.size, 3), dtype='float64')
@@ -461,6 +468,14 @@ class Molecule(A2MDBaseClass) :
         :return:
         """
         return self.atomic_numbers.copy()
+
+    def get_a2md_charges(self):
+
+        q = np.zeros(self.natoms, dtype='float64')
+        for an, fun, c in zip(self.map_function2center, self.functions, self.opt_params):
+            q[an] += fun.integral() * c
+        q = self.atomic_numbers - q
+        return q
 
     def get_coordinates(self):
         """
@@ -742,6 +757,7 @@ class Molecule(A2MDBaseClass) :
 
 
         self.nfunctions = len(self.functions)
+        self.opt_params = np.array(self.opt_params, dtype='float64')
         return True
 
     def read(self, params):

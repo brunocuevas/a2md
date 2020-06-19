@@ -2,6 +2,7 @@ import json
 import numpy as np
 from a2md.mathfunctions import short_generalized, long_generalized, pe_harmonic
 from a2md.mathfunctions import spherical_harmonic
+from a2md.mathfunctions import electrostatic_potential_exp
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
@@ -18,6 +19,50 @@ if __name__ == '__main__':
     sg1 = short_generalized(r, B, l, P)
     sg2 = long_generalized(r, B, l, P)
 
-    plt.plot(r, sg1, marker='.')
-    plt.plot(r, sg2, marker='x')
-    plt.show()
+    # CASE 1
+    r = 2.25
+    P = 1.0
+    l = 1
+    B = 2.24
+    t = np.pi/3
+
+    V = pe_harmonic(r,t, l, P, B)
+    print(
+        "r={:3.2f} t={:3.2f} P=1, l=1, B={:3.2f} -> V={:18.12f}".format(
+            r, t, B, V
+        )
+    )
+
+    r = 2.25
+    P = 0.0
+    l = 2
+    B = 2.24
+    t = np.pi/3
+
+    V = pe_harmonic(r,t, l, P, B)
+    print(
+        "r={:3.2f} t={:3.2f} P=0, l=2, B={:3.2f} -> V={:18.12f}".format(
+            r, t, B, V
+        )
+    )
+
+
+    r = 2.25
+    P = 1
+    l = 3
+    B = 2.24
+    t = np.pi/3
+
+    V = pe_harmonic(r,t, l, P, B)
+    print(
+        "r={:3.2f} t={:3.2f} P=1, l=3, B={:3.2f} -> V={:18.12f}".format(
+            r, t, B, V
+        )
+    )
+
+    V = electrostatic_potential_exp(A=1.0, B=B, d=r)
+    print(
+        "r={:3.2f} t={:3.2f} P=0, l=0, B={:3.2f} -> V={:18.12f}".format(
+            r, t, B, V
+        )
+    )

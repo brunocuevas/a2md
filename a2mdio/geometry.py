@@ -113,3 +113,15 @@ def convert(mol : Mol2):
         ddihedrals[i] = dihedral(x1, x2, x3, x4)
 
     return dbonds, dangles, ddihedrals
+
+def convert_from_reference(coordinates, ref):
+    t = np.zeros(len(ref), dtype='float64')
+    for i, dhatoms in enumerate(ref):
+        i1, i2, i3, i4 = dhatoms
+        x1 = coordinates[i1 - 1, :]
+        x2 = coordinates[i2 - 1, :]
+        x3 = coordinates[i3 - 1, :]
+        x4 = coordinates[i4 - 1, :]
+        t[i] = dihedral(x1, x2, x3, x4)
+
+    return t

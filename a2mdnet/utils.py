@@ -72,7 +72,7 @@ class Parametrizer:
         coords = torch.tensor(mol.get_coordinates(), device=self.device, dtype=torch.float).unsqueeze(0)
         labels = convert_label2tensor(mol.get_atomic_numbers(), device=self.device).unsqueeze(0)
         connectivity = torch.tensor(mol.get_bonds(), dtype=torch.long, device=self.device).unsqueeze(0)
-        charge = torch.tensor(mol.get_total_charge(), dtype=torch.float, device=self.device).unsqueeze(0)
+        charge = torch.tensor(mol.charges + mol.atomic_numbers, dtype=torch.float, device=self.device).unsqueeze(0)
         natoms = mol.get_number_atoms()
         nbonds = mol.get_number_bonds()
         connectivity -= 1
@@ -82,13 +82,12 @@ class Parametrizer:
 
         for fun in params:
             center = fun['center']
-            support_type = fun['support_type']
-            funtype, pos = self.match_bond(fun)
+            funtype, pos = match_fun_names(fun)
             if funtype == 'core':
                 charge[0, center] -= integrate_from_dict(fun)
-            elif funtype == 'iso':
+            elif funtype in 'iso':
                 int_iso[0, center, pos] = integrate_from_dict(fun)
-            elif funtype == 'aniso':
+            elif funtype in 'aniso':
                 idx, col = self.match_bond(connectivity, fun)
                 int_aniso[0, idx, col + pos] = integrate_from_dict(fun)
 
@@ -106,7 +105,6 @@ class Parametrizer:
 
         for fun in params:
             center = fun['center']
-            support_type = fun['support_type']
             funtype, pos = match_fun_names(fun)
             if funtype == 'core':
                 continue
@@ -120,7 +118,6 @@ class Parametrizer:
 
     @staticmethod
     def match_bond(topology, fun):
-        edge = int(fun['params']['Psi'] == 1)
         topology = topology.squeeze(0)
         for j in range(topology.shape[0]):
             c1 = (topology[j, 0] == fun['center']) and (
@@ -131,9 +128,9 @@ class Parametrizer:
             )
             if c1:
 
-                return j, edge
+                return j, 0
             if c2:
 
-                return j, edge + 2
+                return j, 0 + 2
 
         warnings.warn("bond was not matched")

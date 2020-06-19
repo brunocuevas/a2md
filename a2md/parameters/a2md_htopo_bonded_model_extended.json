@@ -117,6 +117,19 @@
           "_COEFFICIENT" : 0.0,
           "_CONNECT" : "_TOPO",
           "_TYPE" : "_HARMONIC"
+        },
+        {
+          "_NAME": "B03",
+          "_PARAMS": {
+            "A": 0.92,
+            "B": 2.95,
+            "l": 3,
+            "P": 0
+          },
+          "_FROZEN": false,
+          "_COEFFICIENT": 0.0,
+          "_CONNECT": "_TOPO",
+          "_TYPE": "_HARMONIC"
         }
     ],
     "N" :

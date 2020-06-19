@@ -1,6 +1,7 @@
 import numpy as np
-from a2mdio.molecules import Mol2
+from a2mdio.molecules import Mol2, UNITS_TABLE
 from a2mdio.qm import WaveFunction, GaussianLog
+from a2md.models import Molecule
 
 
 def sample_box(
@@ -123,3 +124,77 @@ def write_xyz(filename, coords, labels):
                     labels[i], coords[i, 0], coords[i, 1], coords[i, 2]
                 )
             )
+
+def eval_volume(fun, resolution, size, shift):
+    from a2mdio.qm import ElectronDensity
+
+    res_au = resolution * UNITS_TABLE['angstrom']['au']
+
+    nstepsx = int(size / 2)
+    nstepsy = int(size / 2)
+    nstepsz = int(size / 2)
+    minx = - nstepsx * res_au
+    miny = - nstepsy * res_au
+    minz = - nstepsz * res_au
+
+    xx = minx + (np.arange(0.0, size) * res_au) + shift[0]
+    yy = miny + (np.arange(0.0, size) * res_au) + shift[1]
+    zz = minz + (np.arange(0.0, size) * res_au) + shift[2]
+
+    r = np.zeros((zz.size, 3), dtype='float64')
+    r[:, 2] = zz
+    dx = np.zeros((xx.size, yy.size, zz.size))
+
+    for ix in range(xx.size):
+        r[:, 0]= xx[ix]
+        for iy in range(yy.size):
+            r[:, 1] = yy[iy]
+            dx[ix, iy, :] = fun(r)
+
+    vol = ElectronDensity()
+    vol.set_r0(np.array([minx, miny, minz]) * UNITS_TABLE['au']['angstrom'])
+    vol.set_basis(np.identity(3) * resolution)
+    vol.set_volume(dx)
+    return vol
+
+B0 = lambda u : np.polyval([1, 0, 0, 0], 1 - u) / 6.0
+B1 = lambda u : np.polyval([3, -6., 0., 4.0], u) / 6.0
+B2 = lambda u : np.polyval([-3, 3, 3, 1], u) / 6.0
+B3 = lambda u : (u**3) / 6.0
+
+def bspline_z(i, u, charge):
+    if i > 2:
+        return 0.0
+    else:
+        p0 = B0(u) * charge[i + 2]
+        p1 = B1(u) * charge[i + 3]
+        p2 = B2(u) * charge[i + 4]
+        p3 = B3(u) * charge[i + 5]
+    return p0 + p1 + p2 + p3
+
+def spline_point_charge(x, r, Z, resolution):
+    mu = np.linalg.norm(x - r, axis=1) / resolution
+    muint = mu.astype(int)
+    murest = mu - muint
+
+    murange = np.arange(-3, 100, 1) * resolution
+    mucharge = np.zeros(murange.size)
+    mucharge[3] = Z  / ((4/3) * np.pi * (resolution ** 3))
+    q = np.zeros(x.shape[0])
+    for i in range(mu.size):
+        q[i] = bspline_z(muint[i], murest[i], mucharge)
+    return q
+
+def splined_nuclear_charge(x, r, q, resolution):
+    y = np.zeros(x.shape[0])
+    for i in range(r.shape[0]):
+        y+=spline_point_charge(x, r[i, :], q[i], resolution)
+    return y
+
+def eval_charge(x, dm, resolution):
+    r = dm.coordinates
+    q = dm.atomic_numbers
+    pos = splined_nuclear_charge(x, r, q, resolution)
+    neg = dm.eval(x)
+    return pos - neg
+

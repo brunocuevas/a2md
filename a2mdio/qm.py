@@ -60,7 +60,7 @@ def parse_fortran_scientific(fortran_number):
 
 
 class WaveFunction(A2MDlibQM):
-    def __init__(self, verbose=True, file=None, batch_size=1000, prefetch_dm=True):
+    def __init__(self, file=None, verbose=True, batch_size=1000, prefetch_dm=True):
         A2MDlibQM.__init__(self, verbose=verbose, name='wavefunction handler')
 
         self.__file = file

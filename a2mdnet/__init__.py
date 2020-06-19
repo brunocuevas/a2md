@@ -14,3 +14,7 @@ FUNCTION_NAMES2POSITION = {
     "B01":("aniso", 0),
     "B02":("aniso", 1)
 }
+
+MODELS = dict(
+    a2mdc = LIBRARY_PATH / "models/a2mdnet_coeff.pt"
+)

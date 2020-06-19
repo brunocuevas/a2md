@@ -106,8 +106,9 @@ def evaluate(name, param_file, coordinates, output):
 @click.option('--basis', default='6-311++G(d,p)', help='basis set')
 @click.option('--method', default='MP2', help='qm method')
 @click.option('--nprocs', default=4)
+@click.option('--program', default='g09', help='orca or g09')
 @click.argument('name')
-def prepare_qm(name, charge, multiplicity, wfn, population, basis, method, nprocs):
+def prepare_qm(name, charge, multiplicity, wfn, population, basis, method, nprocs, program):
     """
     sets a custom qm calculation for a given molecule
     """
@@ -128,7 +129,13 @@ def prepare_qm(name, charge, multiplicity, wfn, population, basis, method, nproc
         output='{:s}'.format(name.replace('.mol2', '.wfn')),
         additional_commands=adcs, verbose=False
     )
-    qmstp.write_g09(name.replace('.mol2', '.g09.input'), mm)
+    if program == 'g09':
+        qmstp.write_g09(name.replace('.mol2', '.g09.input'), mm)
+    elif program == 'orca':
+        qmstp.write_orca(name.replace('.mol2', '.orca'), mm)
+    else:
+        print("unknown program. Use either ORCA or G09")
+        sys.exit()
 
     print("TE : {:12.4f}".format(time.time() - start))
 

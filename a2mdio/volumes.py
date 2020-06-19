@@ -516,6 +516,24 @@ class Volume(VolumeBaseClass) :
     def multiply(self, factor):
         self.__dx *= factor
 
+    def eval(self, fun):
+        res = self.__X[0, 0]
+        minx, miny, minz = self.__r0
+        xx = minx + (np.arange(self.__nx) * res)
+        yy = miny + (np.arange(self.__ny) * res)
+        zz = minz + (np.arange(self.__nz) * res)
+
+        dx = np.zeros((xx.size, yy.size, zz.size))
+
+        for ix in range(xx.size):
+            r = np.zeros((zz.size, 3), dtype='float64')
+            r[:, 0] = xx[ix]
+            for iy in range(yy.size):
+                r[:, 1] = yy[iy]
+                r[:, 2] = zz[:]
+                dx[ix, iy, :] = fun(r)
+        self.__dx = dx
+
     def read(self):
         """
         read
