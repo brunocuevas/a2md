@@ -201,7 +201,7 @@ def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, 
         if scheme == 'default': dm.parametrize()
         elif scheme == 'extended' : dm.parametrize(dm.parametrization_extended)
         elif scheme == 'harmonic' : dm.parametrize(dm.parametrization_harmonic)
-        elif scheme == 'iso': dm.parametrize(dm.parametrization_spherical)
+        elif scheme == 'spheric': dm.parametrize(dm.parametrization_spherical)
         else:
             print("use a default, extended, harmonic or spheric scheme")
             sys.exit(1)

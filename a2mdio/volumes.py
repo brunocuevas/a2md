@@ -523,15 +523,11 @@ class Volume(VolumeBaseClass) :
         yy = miny + (np.arange(self.__ny) * res)
         zz = minz + (np.arange(self.__nz) * res)
 
-        dx = np.zeros((xx.size, yy.size, zz.size))
+        # dx = np.zeros((xx.size, yy.size, zz.size))
 
-        for ix in range(xx.size):
-            r = np.zeros((zz.size, 3), dtype='float64')
-            r[:, 0] = xx[ix]
-            for iy in range(yy.size):
-                r[:, 1] = yy[iy]
-                r[:, 2] = zz[:]
-                dx[ix, iy, :] = fun(r)
+        X, Y, Z = np.meshgrid(xx, yy, zz)
+        r = np.stack([Z.flatten(), X.flatten(), Y.flatten()], axis=1)
+        dx = fun(r).reshape(xx.size, yy.size, zz.size).T
         self.__dx = dx
 
     def read(self):
@@ -598,6 +594,8 @@ class Volume(VolumeBaseClass) :
                         dx[ix,iy,iz] = float(t)
                     except TypeError:
                         raise IOError('dx file format was not correct')
+                    except ValueError:
+                        break
                     iz += 1
                     if iz == nz :
                         iy += 1
