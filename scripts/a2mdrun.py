@@ -435,6 +435,40 @@ def update_mol2(name, wfn, gaussian_log, output, charges):
     mm.write(output)
 
 @click.command()
+@click.option('--charges', default='npa', help='either MK or NPA')
+@click.option('--input_type', default='json', help='either csv or json')
+@click.option('--wfn_suffix', default='.wfn')
+@click.option('--g09_suffix', default='.g09.output')
+@click.argument('inp')
+@click.argument('suffix')
+def update_many_mol2(inp, suffix, wfn_suffix, g09_suffix, input_type, charges):
+    """
+    updates many mol2 files at the same time
+    """
+    from a2mdio.qm import WaveFunction, GaussianLog
+    from a2mdio.molecules import UNITS_TABLE
+    if input_type == 'json':
+        with open(inp) as f:
+            input_contents = json.load(f)
+    elif input_type == 'csv':
+        with open(inp) as f:
+            input_contents = [i.strip() for i in f.readlines()]
+    else:
+        print("unknown format. use either csv or json")
+        sys.exit()
+
+    for name in input_contents:
+        mm = Mol2(name + '.mol2')
+        wfn = name + wfn_suffix
+        gaussian_log = name + g09_suffix
+        wfn_instance = WaveFunction(file=wfn, prefetch_dm=False, verbose=False)
+        glog = GaussianLog(file=gaussian_log, method='', charges=charges, verbose=False)
+        gdict = glog.read()
+        mm.coordinates = wfn_instance.get_coordinates() * UNITS_TABLE['au']['angstrom']
+        mm.charges = np.array(gdict['charges'], dtype='float64')
+        mm.write(name + suffix)
+
+@click.command()
 @click.option('--input_type', default='csv', help='either csv or npy')
 @click.option('--output_type', default='npy', help="either csv or npy")
 @click.option('--random', default=False, help="permutates sample")
