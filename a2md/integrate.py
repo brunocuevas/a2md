@@ -154,7 +154,7 @@ def mlse_functional(ref : Callable, fun : Callable):
         return rxf * np.log(np.power(fxf - rxf, 2.0))
     return mlse
 
-def kullback_leibler_functional(ref : Callable, fun : Callable):
+def dkl_functional(ref : Callable, fun : Callable):
     def dkl(x):
         rxf = ref(x)
         fxf = fun(x)

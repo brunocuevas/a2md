@@ -150,3 +150,28 @@ def electrostatic_potential(lines):
                 ep.append(float(line.split()[1]))
 
     return ep
+
+def forces(lines):
+    flag = False
+    force_ = []
+    center_ = []
+    start = None
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if re.match('Calling FoFJK', line):
+            start = i + 6
+            flag = True
+            break
+    if flag:
+        for line in lines[start:]:
+            if re.search(r'---', line):
+                break
+            else:
+                cnt, _, x, y, z = line.split()
+                x = float(x)
+                y = float(y)
+                z = float(z)
+                force_.append([x, y, z])
+                center_.append(int(cnt))
+
+    return center_, force_

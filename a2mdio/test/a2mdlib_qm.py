@@ -1,14 +1,19 @@
 from a2mdio.qm import GaussianLog
+from a2mdio.parsers import forces
 from a2mdtest.a2mdtests import aca
 from a2mdio.wfx import WaveFunctionX
 from a2mdio.utils import eval_volume
 import numpy as np
 if __name__ == '__main__':
 
-    # gl = GaussianLog(
-    #     file='ATA_000000.g09.output', method='dft-mPW3PBE',
-    #     charges='MK', ep=False
-    # )
+    gl = GaussianLog(
+        file='cTc_002886.g09.output', method='dft-B3LYP',
+        charges='MK', ep=False
+    )
+    c, f = gl.seek(forces)
+    for (x, y, z) in f:
+        print("{:8.4f} {:8.4f} {:8.4f}".format(x, y, z))
+    print("DONE!")
     # out_dict = gl.read()
     #
     # gl = GaussianLog(
@@ -18,4 +23,4 @@ if __name__ == '__main__':
     # out_dict = gl.read()
     #
     # print('DONE!')
-    wfx = WaveFunctionX(file='crambin.dft.orca.molden.wfx')
+    # wfx = WaveFunctionX(file='crambin.dft.orca.molden.wfx')

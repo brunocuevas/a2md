@@ -1,6 +1,6 @@
 from a2md.models import a2md_from_mol
 from a2md.integrate import integrate_density_functional
-from a2md.integrate import mse_functional, kullback_leibler_functional, vdwvolume_functional
+from a2md.integrate import mse_functional, dkl_functional, vdwvolume_functional
 from a2mdio.molecules import Mol2
 from a2mdio.qm import WaveFunction
 import json
@@ -65,7 +65,7 @@ def dkl(name, reference, candidate, reference_type, candidate_type, grid, resolu
     reference_d = admin_sources(mm, reference, reference_type)
     candidate_d = admin_sources(mm, candidate, candidate_type)
 
-    dklf = kullback_leibler_functional(ref=reference_d.eval, fun=candidate_d.eval)
+    dklf = dkl_functional(ref=reference_d.eval, fun=candidate_d.eval)
     dklv = integrate_density_functional(dklf, mm, res=resolution, grid=grid)
     print("{:24s} {:24s} DKL {:18.8e} {:8.4f}".format(reference, candidate, dklv, time.time() - start))
 

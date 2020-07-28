@@ -9,7 +9,12 @@ ATOM_LABELS = [
     '', '', '', 'c', 'n', 'o', 'f', '',
     '', '', '', 'si', 'p', 's', 'cl', ''
 ]
-ATOMIC_NUMBERS = {"C": 6, "N": 7, "O": 8, "H": 1, "F": 9, "S":16, "P":15}
+ATOMIC_NUMBERS = {
+    "H": 1, "He":2,
+    "Li": 3, "Be":4, "B":5, "C": 6, "N": 7, "O": 8,  "F": 9, "Ne":10,
+    "Na":11, "Mg":12, "Al":13, "Si":14, "P":15, "S":16, "Cl":17, "Ar":18,
+    "K":19, "Ca":20, "Ga":31, "Ge":32, "As":33, "Se":34, "Br":35, "Kr":36
+}
 
 UNITS_TABLE = dict(
     angstrom=dict(
@@ -272,7 +277,7 @@ class Mol2(MolRepresentation):
         """
         with open(fn) as f:
             raw_text = f.read()
-            mol, atom, bond = raw_text.split(r'@')[1:4]
+            mol, atom, bond = raw_text.split(r'@<TRIPOS>')[1:4]
 
         # PARSING MOLECULE PART
         head, name, numbers = mol.split('\n')[:3]
