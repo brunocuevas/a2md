@@ -151,7 +151,7 @@ def electrostatic_potential(lines):
 
     return ep
 
-def forces(lines):
+def forces(lines, symmetry=True):
     flag = False
     force_ = []
     center_ = []
@@ -159,7 +159,10 @@ def forces(lines):
     for i, line in enumerate(lines):
         line = line.strip()
         if re.match('Calling FoFJK', line):
-            start = i + 6
+            if symmetry:
+                start = i + 6
+            else:
+                start = i + 5
             flag = True
             break
     if flag:

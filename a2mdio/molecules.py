@@ -36,7 +36,7 @@ UNITS_TABLE = dict(
 
 class QmSetUp(A2MDlib):
     def __init__(
-            self, basis, method, calculation_type='single', nprocs=1, disk=None, memory=None, output=None,
+            self, basis, method, calculation_type='single', nprocs=1, disk=None, memory=None,
             additional_commands=None, verbose=None
     ):
         A2MDlib.__init__(self, name='G09 input writer', verbose=verbose)
@@ -45,7 +45,6 @@ class QmSetUp(A2MDlib):
         self.nprocs = nprocs
         self.disk = disk
         self.memory = memory
-        self.output = output
         self.calculation_type = calculation_type
         self.additional_commands = additional_commands
 
@@ -62,7 +61,7 @@ class QmSetUp(A2MDlib):
         except AttributeError:
             raise IOError("some of the requested fields was missing")
         return size, total_charge, units, multiplicity, coordinates, labels
-    def write_g09(self, file, mol):
+    def write_g09(self, file, mol, wfn=False):
         import os
 
         size, total_charge, units, multiplicity, coordinates, labels = self.get_mol_info(mol)
@@ -106,10 +105,10 @@ class QmSetUp(A2MDlib):
                 labels[i], coordinates[i, 0], coordinates[i, 1], coordinates[i, 2])
             )
         g09_coords_str = '\n'.join(g09_coords_matrix) + '\n'
-        if self.output is not None:
-            g09_output_line = '\n{:s}\n'.format(self.output)
+        if wfn:
+            g09_output_line = '\n{:s}\n'.format(file.replace('.g09.output', '') + '.wfn')
         else:
-            g09_output_line = ''
+            g09_output_line = '\n'
 
         g09_str = ''.join(
             [

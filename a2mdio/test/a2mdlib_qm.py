@@ -7,7 +7,7 @@ import numpy as np
 if __name__ == '__main__':
 
     gl = GaussianLog(
-        file='cTc_002886.g09.output', method='dft-B3LYP',
+        file='urea_c_000968.g09.output', method='dft-B3LYP',
         charges='MK', ep=False
     )
     c, f = gl.seek(forces)
