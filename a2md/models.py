@@ -10,6 +10,7 @@ from a2md.baseclass import A2MDBaseClass
 from a2mdio.molecules import Mol2, PDB
 from a2md.utils import convert_connectivity_tree_to_pairs
 from a2mdio import PDB_PROTEIN_TYPE_CHARGES, PDB_PROTEIN_CHARGES, PDB_PROTEIN_TYPES, PDB_PROTEIN_TOPOLOGY
+from  typing import List, Union, Dict, Callable
 CLUSTERING_TRESHOLD_VALUE = 0.02
 
 
@@ -34,7 +35,8 @@ SUPPORT_TYPE = {
 
 def a2md_from_mol(mol : Mol2):
     """
-    returns the density model associated to a Mol2
+    returns a a2md.models.Molecule associated to a Mol2
+    ---
     :param mol:
     :type mol: Mol2
     :return:
@@ -60,6 +62,7 @@ def a2md_from_mol(mol : Mol2):
 def polymer_from_pdb(mol : PDB, chain : str ):
     """
     returns the polymer density model associated to a Mol2
+    Still in development
     :param mol:
     :param chain:
     :return:
@@ -91,18 +94,24 @@ class Molecule(A2MDBaseClass) :
     parametrization_extended = EXTENDED_TOPO_RESTRICTED_PARAMS
     parametrization_spherical = SPHERICAL_PARAMS
     def __init__(
-            self, coordinates, atomic_numbers, charge, topology, parameters=None, verbose=False,
+            self, coordinates : np.ndarray, atomic_numbers : Union[List[int], np.ndarray],
+            charge : Union[List[int], np.ndarray], topology : List[List[int]],
+            parameters=None, verbose=False,
             atom_labels=None, segments=None
     ):
         """
+        A2MD,models.molecule
+
+        This object stores the information and the methods to generate models of electron density
+        based on the linear combination of exponential-family functions.
 
         :param coordinates: nuclei coordinates
-        :param charge: atoms in molecule charges
-        :param topology: list of linked nuclei
-        :param parameters: parameters for bonding
+        :param charge: charge of each of the atoms
+        :param topology: list of atoms joined to each atom
+        :param parameters: electron density model parameters
         :param verbose:
-        :param atomic_numbers
-        :param segments
+        :param atomic_numbers: atomic number of each atom (integer)
+        :param segments: to use in polymers
         :type coordinates: np.ndarray
         :type charge: np.ndarray
         :type topology: list
@@ -139,7 +148,7 @@ class Molecule(A2MDBaseClass) :
         if parameters is not None:
             self.read(parameters)
 
-    def clustering(self, clusterizer):
+    def clustering(self, clusterizer : Callable):
         """
         a2md.models.Molecule.clusterize
         ---
@@ -316,14 +325,15 @@ class Molecule(A2MDBaseClass) :
         self.nfunctions = len(new_functions)
         self.is_clusterized = True
 
-    def eval(self, x, kind='density'):
+    def eval(self, x : np.ndarray, kind='density'):
         """
-        Evaluation of aAMD at defined coordinates
+        Evaluation of A2MD at defined coordinates.
+        Electron density (-density-) or electrostatic potential (-ep-)
 
         :param x: cartessian coordinates
         :param kind: either density or ep
         :type x: np.ndarray
-        :return: density values
+        :return: density values  (e-/Bohr^3)
         :type: np.ndarray
         """
         d = np.zeros(x.shape[0])
@@ -340,19 +350,49 @@ class Molecule(A2MDBaseClass) :
 
         return d
 
-    def eval_by_fun(self, x, i):
+    def eval_by_fun(self, x : np.ndarray, i : int):
+        """
+        Evaluation of a specific A2MD function at defined coordinates.
+        Function must be defined by its index
+
+        :param x: cartessian coordinates
+        :param i: function index
+        :type x: np.ndarray
+        :type i: int
+        :return: density values (e-/Bohr^3)
+        :type: np.ndarray
+        """
         sup = self.functions[i]
         c = self.opt_params[i]
         d = c * sup.eval(x)
         return d
 
-    def eval_core(self, x):
+    def eval_core(self, x : np.ndarray):
+        """
+        Evaluation of Frozen function (representing core function) at defined coordinates.
+
+        :param x: cartessian coordinates
+        :type x: np.ndarray
+        :return: density values
+        :type: np.ndarray
+        """
         d = np.zeros(x.shape[0])
         for sup, c, f in zip(self.functions, self.opt_params, self.map_frozenfunctions):
             if f: d += c * sup.eval(x)
         return d
 
     def eval_by_name(self, x, fun_name):
+        """
+        Evaluation of a specific A2MD function at defined coordinates.
+        Function must be defined by its name
+
+        :param x: cartessian coordinates
+        :param fun_name: function name
+        :type x: np.ndarray
+        :type fun_name: str
+        :return: density values (e-/Bohr^3)
+        :type: np.ndarray
+        """
         d = np.zeros(x.shape[0])
         for sup, c, name in zip(self.functions, self.opt_params, self.function_names):
             if name[1] in fun_name:
@@ -360,6 +400,15 @@ class Molecule(A2MDBaseClass) :
         return d
 
     def eval_nuclear_potential(self, x):
+        """
+        Evaluation of nuclear electrostatic potential
+
+        :param x: cartessian coordinates
+
+        :type x: np.ndarray
+        :return: nuclear potential (Ha)
+        :type: np.ndarray
+        """
         r = self.coordinates.copy()
         v = np.zeros(x.shape[0], dtype='float64')
         for i, z in enumerate(self.atomic_numbers):
@@ -370,11 +419,14 @@ class Molecule(A2MDBaseClass) :
 
     def eval_volume(self, spacing, resolution, kind='density', cutoff=None):
         """
+        Evaluation of electron density in a grid. Useful to visualize electron density.
+        Resulting object can be saved as a .dx file and visualized in Chimera and other
+        tools.
 
-        :param spacing:
-        :param resolution:
-        :param kind:
-        :param cutoff:
+        :param spacing: amount of space around the min and max of the molecule.
+        :param resolution: use Bohr as unit of length
+        :param kind: either electron density (-density-) or electrostatic potential (-ep-)
+        :param cutoff: truncates values exceding some value.
         :return:
         """
         from a2mdio.qm import ElectronDensity
@@ -453,6 +505,8 @@ class Molecule(A2MDBaseClass) :
 
     def integrate(self):
         """
+        Provides the sum of the integrals of the density functions.
+        Useful for debugging.
 
         :return:
         """
@@ -465,12 +519,18 @@ class Molecule(A2MDBaseClass) :
     def get_atomic_numbers(self):
         """
 
-        :return:
+        :return: atomic numbers
         """
         return self.atomic_numbers.copy()
 
     def get_a2md_charges(self):
+        """
+        Uses a2md fitting procedure as a method to describe electronic populations.
+        Its performance remains untested, this function has been developped with
+        debugging purpose.
 
+        :return:
+        """
         q = np.zeros(self.natoms, dtype='float64')
         for an, fun, c in zip(self.map_function2center, self.functions, self.opt_params):
             q[an] += fun.integral() * c
@@ -493,14 +553,15 @@ class Molecule(A2MDBaseClass) :
 
     def get_gamma(self):
         """
-
+        Gamma is the regularization value. Useful for debugging.
         :return:
         """
         return self.regularization
 
     def get_integrals(self):
         """
-
+        Calculates the integrals of each of the functions and returns
+        a vector with such integral.s
         :return:
         """
         integrals = np.zeros(len(self.functions), dtype='float64')
@@ -534,6 +595,10 @@ class Molecule(A2MDBaseClass) :
         return len(self.functions)
 
     def get_number_optimizable_functions(self):
+        """
+        returns the number of functions that have not got frozen
+        :return:
+        """
         j = 0
         for i in self.map_frozenfunctions:
             if not i:
@@ -546,7 +611,8 @@ class Molecule(A2MDBaseClass) :
 
     def get_parametrization(self):
         """
-        This method allows to create a list of function parameters
+        Creates a list with the parameters of the function. Useful for
+        model persistence.
 
         :return:
         :rtype: list
@@ -571,6 +637,10 @@ class Molecule(A2MDBaseClass) :
         return atom_parametrization_list
 
     def get_symbols(self):
+        """
+        returns the atomic element symbols associated to each atomic number
+        :return:
+        """
         if self.atom_labels is None:
             return [AN2ELEMENT[i] for i in self.atomic_numbers]
         else:
@@ -696,8 +766,15 @@ class Molecule(A2MDBaseClass) :
         """
         parametrize
         ---
-        This function aims to replace the preprocessor by allowing A2MD.Molecule
-        to parametrize itself. Just need to provide a set of parameters.
+        Assigns the different kinds of functions to each atom and bond by reading the parameters
+        dictionary (param_dict). See guidelines to create a parameters dictionary.
+
+        It is possible to use the dictionaries stored in the a2md instance. For
+        instance:
+
+            model.parametrize(param_dict=model.parametrization_spherical)
+
+        Default is parametrization_default.
 
         :param param_dict: Dictionary including parameters in the field "_MODEL"
         :return:
@@ -836,6 +913,12 @@ class Molecule(A2MDBaseClass) :
         self.atom_charges = self.atomic_numbers.astype('float64')
 
     def modify_charge_by_segment(self, charge_str):
+        """
+        Useful to parametrize polymers
+
+        :param charge_str:
+        :return:
+        """
         if len(charge_str) > self.nsegments:
             raise IOError("charge str must be equal to the number of segments")
 
@@ -866,6 +949,23 @@ class Polymer(Molecule):
         coordinates, atomic_numbers, atom_labels, topology, charge, atom_residx,
         sequence, residue_names, residue_idx,  parameters=None, verbose=False
     ):
+        """
+        A2MD.models.Polymer
+        ---
+        Similar to Molecule, it contains some extra tricks to allow parametrization of polymer molecules
+        as proteins.
+        :param coordinates:
+        :param atomic_numbers:
+        :param atom_labels:
+        :param topology:
+        :param charge:
+        :param atom_residx:
+        :param sequence:
+        :param residue_names:
+        :param residue_idx:
+        :param parameters:
+        :param verbose:
+        """
 
         Molecule.__init__(
             self,

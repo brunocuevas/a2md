@@ -143,6 +143,34 @@ def __extract_forces(name, g09log, output, output_format):
         for fx_ in fx:
             print("{:18.6e} {:18.6e} {:18.6e}".format(fx_[0], fx_[1], fx_[2]))
 
+def __random_rotation(name, out, n=100):
+    mm = Mol2(name)
+    x = mm.get_coordinates()
+    x = x - x.mean(axis=0)
+    for i in range(n):
+        u = (2.0 * np.random.rand(1)) - 1.0
+        u = np.clip(u, -0.999999, 0.999999)
+        theta = np.arccos(u) # * np.sign(u)
+        phi = np.random.rand(1) * 2.0 * np.pi
+
+        rotx = np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, np.cos(theta), -np.sin(theta)],
+            [0.0, np.sin(theta), np.cos(theta)]
+        ], dtype='float64')
+
+        rotz = np.array([
+            [np.cos(phi), -np.sin(phi), 0.0],
+            [np.sin(phi), np.cos(phi), 0.0],
+            [0.0, 0.0, 1.0]
+        ], dtype='float64')
+
+        y = np.dot(rotz, x.T)
+        y = np.dot(rotx, y)
+        mm.coordinates = y.T
+        mm.write(out + '_%03d.mol2' % i)
+
+
 @click.group()
 def cli():
     """
@@ -251,11 +279,18 @@ def many_extract_forces(name, g09log, outfmt):
     ef = lambda x : __extract_forces(x, g09log, x.replace('.g09.output', '.ff.' + outfmt), outfmt)
     do_many(name, 'txt', ef)
 
+@click.command()
+@click.argument('name')
+@click.argument('out')
+def random_rotation(name, out):
+    __random_rotation(name, out)
+
 cli.add_command(prepare_qm)
 cli.add_command(update_mol2)
 cli.add_command(convert_sample)
 cli.add_command(generate_ppp)
 cli.add_command(extract_forces)
+cli.add_command(random_rotation)
 
 cli.add_command(many_prepare_qm)
 cli.add_command(many_update_mol2)

@@ -1,6 +1,6 @@
 from a2md.baseclass import A2MDBaseClass
 import numpy as np
-from a2md.mathfunctions import get_angle
+from a2md.mathfunctions import get_polar_rep
 from a2md.mathfunctions import generalized_exponential, generalized_exponential_integral
 from a2md.mathfunctions import gaussian, angular_gaussian_integral
 from a2md.mathfunctions import electrostatic_potential_exp, electrostatic_potential_xexp_gaussian
@@ -198,7 +198,7 @@ class SupportAngular(Support):
         if self.coordinate_system is None:
             raise RuntimeError("reference frame was not created. can not calculate angular function")
         else:
-            z,d = get_angle(x, center=self.coordinates, ref_frame=self.coordinate_system)
+            z,d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
             radial_component=generalized_exponential(self.__A, self.__B, d, self.__P)
             angular_component=gaussian(self.__alpha, 1.0, z)
             return radial_component * angular_component
@@ -214,7 +214,7 @@ class SupportAngular(Support):
         if self.coordinate_system is None:
             raise RuntimeError("reference frame was not created. can not calculate angular function")
         else:
-            z,d = get_angle(x, center=self.coordinates, ref_frame=self.coordinate_system)
+            z,d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
             u = electrostatic_potential_xexp_gaussian(self.__B, self.__alpha, d, z)
             return u * self.__A
 
@@ -243,7 +243,7 @@ class SupportHarmonic(Support):
         if self.coordinate_system is None:
             raise RuntimeError("reference frame was not created. can not calculate angular function")
         else:
-            z,d = get_angle(x, center=self.coordinates, ref_frame=self.coordinate_system)
+            z,d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
             radial_component=generalized_exponential(self.__A, self.__B, d, self.__P)
             angular_component = spherical_harmonic(z, self.__l)
             return radial_component * angular_component
@@ -253,7 +253,7 @@ class SupportHarmonic(Support):
         return 0.0
 
     def __eval_ep_harmonic(self, x):
-        z, d = get_angle(x, center=self.coordinates, ref_frame=self.coordinate_system)
+        z, d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
         v = pe_harmonic(d, z, self.__l, self.__P, self.__B) * self.__A
         return v
 

@@ -22,9 +22,12 @@ Read the docs folder to learn to use the library and the CLI tools.
 
 ## Dependencies
 
+Some of the most important dependencies are:
 - numpy
 - torch
 - torchani (1.2)
+
+We provide a Python Environment to ease installation. 
 
 ## Contact
 

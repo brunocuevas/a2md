@@ -25,6 +25,7 @@ EXTENDED_TOPO_RESTRICTED_FILE = PARAMETERS_PATH / "a2md_topo_bonded_model_extend
 EXTENDED_TOPO_RESTRICTED_PARAMS = open_file(EXTENDED_TOPO_RESTRICTED_FILE)
 SPHERICAL_FILE = PARAMETERS_PATH / "a2md_spherical_model.json"
 SPHERICAL_PARAMS = open_file(SPHERICAL_FILE)
+VDW_PARAMS = open_file(PARAMETERS_PATH / "vanDerWaals_coefficients.json")
 # SYMMETRY_PARAMETERS = open_file(LIBRARY_PATH / '/parameters/symmetry_params.json')
 
 LEBEDEV_DESIGN = dict(

@@ -2,7 +2,6 @@ import numpy as np
 from scipy.special import erfi, erf, expi, gamma, gammaincc, exp1
 
 INVERSE_DIST_DUMPING = 1e-3
-
 NUM2ELE = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne']
 ELE2NUM = dict(H = 0, He = 1, Li = 2, Be = 3, B = 4 , C = 5, N = 6, O = 7, F = 8, Ne = 9 )
 
@@ -18,8 +17,13 @@ def filter_min(d):
 
 # Angle calculation
 
-def get_angle(x, center, ref_frame = None):
+def get_polar_rep(x, center, ref_frame = None):
     """
+    calculates the angle of the vector x-center against
+    the z axis and module of such vector.
+
+    the reference frame allows to rotate the system to
+    an arbitrary z vector (for instance, a bonding vector).
 
     :param x:
     :param center:
@@ -49,8 +53,9 @@ def get_angle(x, center, ref_frame = None):
 def generalized_exponential(A, B, d, P=0):
     """
     generalized exp
-    ---
-    Includes a polymonia
+    Formula:
+    A Exp[-B*d] * (d^p)
+
     :param A: Coefficient
     :param B: Exponent
     :param d: distance
@@ -61,22 +66,18 @@ def generalized_exponential(A, B, d, P=0):
 
 def generalized_exponential_integral(A, B, P=0):
     """
-
-    :param A:
-    :param B:
-    :param P:
-    :return:
+    generalized exponential integral
+    Formula:
+    int[A d^{P+2} Exp[-B d] dd] = A(P+2!)/(B^{P+1})
     """
     return (A * np.power(B, -3-P)) * gamma(3 + P)
 
 
 def gaussian(alpha, h, d):
     """
-
-    :param alpha:
-    :param h:
-    :param d:
-    :return:
+    gaussian function
+    Formula:
+    h Exp[-alpha * (d^2)]
     """
     return h * np.exp(-alpha * (d**2))
 
@@ -87,9 +88,10 @@ def nonefun(z):
 
 def angular_gaussian_integral(alpha):
     """
+    angular gaussian integral
+    Formula:
+    int[G[alpha, theta]*Sin(theta) dtheta dphi, {dtheta, 0, Pi}, {dphi, 0, 2Pi}]
 
-    :param alpha:
-    :return:
     """
 
     factor1 = (np.exp(-1 / (4 * alpha)) * np.sqrt(np.pi)) / (4 * np.sqrt(alpha))
@@ -110,11 +112,10 @@ def nonfun_integral():
 
 def dipole_gaussian(G, u, alpha):
     """
+    Obtains the first moment of function:
 
-    :param G:
-    :param u:
-    :param alpha:
-    :return:
+    rho[d] = (u d Exp[-G d - alpha * (theta^2)])
+
     """
 
     factor1 = (np.exp(-1 / alpha) * np.sqrt(np.pi)) / (8 * np.sqrt(alpha))
@@ -301,18 +302,33 @@ def electrostatic_potential_xexp_gaussian(G, alpha, d, z):
         electrostatic_potential_buffer = electrostatic_potential_buffer + (u_rad * u_ang * u_p)
     return electrostatic_potential_buffer
 
+
+# Electrostatic potential of harmonic functions
+# harmonics
 def yl1m0(t):
+    """
+    harmonic l=1, m=0
+    """
     return np.cos(t)
 
 def yl2m0(t):
+    """
+    harmonic l=2, m=0
+    """
     x = np.cos(t)
     return 0.5 * (3 * (x * x) - 1)
 
 def yl3m0(t):
+    """
+    harmonic l=3, m=0
+    """
     x = np.cos(t)
     return 0.5 * (5 * (x ** 3) - 3 * x)
 
 def inc_gamma(a, x):
+    """
+    incomplete gamma definition
+    """
     return exp1(x) if a == 0 else gamma(a)*gammaincc(a, x)
 
 def spherical_harmonic(t, l):
@@ -327,6 +343,7 @@ def spherical_harmonic(t, l):
     else:
         raise NotImplementedError("only implemented up to l = 3")
 
+# short and long terms
 def short_generalized(r, B, l, P):
     term1 = r ** (2 + P)
     term2 = (B * r) ** (-3 - l - P)
