@@ -11,9 +11,10 @@ import sys
 import logging
 logger = logging.getLogger('')
 
+
 def admin_sources(mm, reference, reference_type):
     if reference_type == 'wfn':
-        reference_d = WaveFunction(verbose=False, file=reference, batch_size=10000)
+        reference_d = WaveFunction.from_file(filename=reference, program='g09', prefetch_dm=True)
     elif reference_type == 'a2md':
         reference_d = a2md_from_mol(mm)
         with open(reference) as f:
@@ -27,11 +28,14 @@ def admin_sources(mm, reference, reference_type):
 @click.group()
 def cli():
     """
-    A2MDintegrate
-    Comparison of electron densities
+    A2MD compare
+    ---
+    Compares electron density functions by integrating functionals
+
     """
 
     pass
+
 
 @click.command()
 @click.option('--reference_type', default='wfn', help='type of reference')
@@ -42,6 +46,17 @@ def cli():
 @click.argument("reference")
 @click.argument("candidate")
 def mse(name, reference, candidate, reference_type, candidate_type, grid, resolution):
+    """
+
+    Integrates mean squared error
+
+    Example:
+
+        mse --reference_type=wfn --candidate_type=a2md --grid=coarse --resolution=100 benzene.mol2 benzene.wfn
+        benzene.ppp
+
+
+    """
     start = time.time()
     mm = Mol2(name)
     reference_d = admin_sources(mm, reference, reference_type)
@@ -50,6 +65,7 @@ def mse(name, reference, candidate, reference_type, candidate_type, grid, resolu
     msef = mse_functional(ref=reference_d.eval, fun=candidate_d.eval)
     msev = integrate_density_functional(msef, mm, res=resolution, grid=grid)
     print("{:24s} {:24s} MSE {:18.8e} {:8.4f}".format(reference, candidate, msev, time.time() - start))
+
 
 @click.command()
 @click.option('--reference_type', default='wfn', help='type of reference')
@@ -60,6 +76,16 @@ def mse(name, reference, candidate, reference_type, candidate_type, grid, resolu
 @click.argument("reference")
 @click.argument("candidate")
 def dkl(name, reference, candidate, reference_type, candidate_type, grid, resolution):
+    """
+
+    Integrates kullback-leibler divergence between two electron density functions
+
+    Example:
+
+        dkl --reference_type=wfn --candidate_type=a2md --grid=coarse --resolution=100 benzene.mol2 benzene.wfn benzene.ppp
+
+
+    """
     start = time.time()
     mm = Mol2(name)
     reference_d = admin_sources(mm, reference, reference_type)
@@ -69,6 +95,7 @@ def dkl(name, reference, candidate, reference_type, candidate_type, grid, resolu
     dklv = integrate_density_functional(dklf, mm, res=resolution, grid=grid)
     print("{:24s} {:24s} DKL {:18.8e} {:8.4f}".format(reference, candidate, dklv, time.time() - start))
 
+
 @click.command()
 @click.option('--reference_type', default='wfn', help='wfn or a2md')
 @click.option('--epsilon', default=1e-3, help='volume surface density value')
@@ -77,6 +104,16 @@ def dkl(name, reference, candidate, reference_type, candidate_type, grid, resolu
 @click.argument('name')
 @click.argument('reference')
 def volume(name, reference, reference_type, epsilon, grid, resolution):
+    """
+
+    Evaluates the volume enclosed by an isodensity surface
+
+    Example:
+
+        volume --reference_type=a2md --epsilon=1e-3 --grid=coarse --resolution=100 benzene.mol2 benzene.ppp
+
+
+    """
     start = time.time()
     mm = Mol2(name)
     reference_d = admin_sources(mm, reference, reference_type)
@@ -95,11 +132,23 @@ def volume(name, reference, reference_type, epsilon, grid, resolution):
 @click.argument('candidate')
 @click.argument('coordinates')
 def compare_sample(name, reference, candidate, coordinates, metric, reference_type, candidate_type):
+    """
+
+    Compares a given metric (MSE, MLSE, RMSE) between two EDs in a set of coordinates
+
+    Example:
+        compare_sample --reference_type=wfn --candidate_type=wfn --metric=mse benzene.mol2 benzene.mp2.wfn \
+        benzene.ccsdt.wfn coords.csv
+
+    Avoid commas in the coords.csv
+
+    """
     start = time.time()
     mm = Mol2(name)
+    metric_function = None
     if metric in ['mse', 'mlse', 'rmse']:
         if metric == 'mse':
-            metric_function = lambda x,y : np.power((x - y), 2.0).sum()/x.shape[0]
+            metric_function = lambda x, y: np.power((x - y), 2.0).sum()/x.shape[0]
         elif metric == 'rmse':
             metric_function = lambda x, y: np.sqrt(np.power((x - y), 2.0).sum() / x.shape[0])
         elif metric == 'mlse':
@@ -117,6 +166,7 @@ def compare_sample(name, reference, candidate, coordinates, metric, reference_ty
 
     value = metric_function(reference_p, candidate_p)
     print("{:24s} {:24s} SAMPLE-{:s} {:18.8e} {:8.4f}".format(reference, candidate, metric, value, time.time() - start))
+
 
 cli.add_command(mse)
 cli.add_command(dkl)

@@ -1,4 +1,4 @@
-from a2mdio.qm import WaveFunction, symetry_index
+from a2mdio.qm import WaveFunction, symmetry_index
 import re
 import numpy as np
 
