@@ -7,6 +7,7 @@ import click
 import json
 import time
 
+
 @click.group()
 def cli():
     pass
