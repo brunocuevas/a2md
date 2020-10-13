@@ -9,6 +9,7 @@ import json
 import warnings
 from pathlib import Path
 
+
 def convert_label2tensor(label, device=torch.device('cpu')):
     u = [ELEMENT2NN[i] for i in label]
     return torch.tensor(u, device=device, dtype=torch.long)
@@ -248,12 +249,12 @@ class MolecularElectronDensityDataset(MolecularDataset):
             match_method=match_method
         )
 
+        if density_data_path is not None:
+            if type(density_data_path) is not Path:
+                density_data_path = Path(density_data_path)
+
         self.density_data_path = density_data_path
         self.density_buffer = []
-
-
-        if type(density_data_path) is not Path:
-            density_data_path = Path(density_data_path)
 
         if self.density_data_path is not None and prefetch:
             for item in self.ids:

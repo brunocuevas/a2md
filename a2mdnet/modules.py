@@ -842,4 +842,5 @@ class QMDensityBatch:
             out.append(qmfun(x))
 
         out = torch.stack(out, dim=0)
+        wfnh5.close()
         return out
