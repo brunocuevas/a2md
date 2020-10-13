@@ -9,7 +9,7 @@ from a2mdio.molecules import UNITS_TABLE
 from a2mdio.params import AMDParameters
 from a2mdnet import ALLOWED_SPECIES, ELEMENT2SYMBOL, SYMBOL2NN
 from a2mdio.molecules import Mol2
-from a2mdio import MAP_SYMBOL2AN
+from a2mdio import get_atomic_number
 import math
 
 
@@ -46,7 +46,7 @@ class A2MDtFun:
         """
         self.device = device
         self.elements = convert_label2tensor(
-            [MAP_SYMBOL2AN[i] for i in elements], device=device
+            [get_atomic_number(i) for i in elements], device=device
         )
         self.raw_params = params
         self.params = dict()
