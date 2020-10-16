@@ -2,10 +2,12 @@ from a2mdio.molecules import Mol2
 from a2mdnet.data import convert_label2tensor
 from a2md.utils import integrate_from_dict
 from a2mdnet.data import match_fun_names
+from a2mdio.utils import eval_volume
+from a2md import LEBEDEV_DESIGN
 import warnings
 import torch
 from typing import Callable, Dict
-
+import math
 
 def get_charges(l, t, i_iso, i_aniso, iso, aniso, device):
     """
@@ -139,17 +141,21 @@ class Parametrizer:
 
 
 class CoordinatesSampler:
-
     def __init__(
             self, device: torch.device, dtype: torch.dtype,
-            sampler: Callable, sampler_args: Dict
+            sampler: str, sampler_args: Dict
     ):
         """
         coordinates sampler
         ---
         performs a 3d coordinates sample given some initical coordinates
         """
-        self.sampler = sampler
+
+        self.internal_methods = dict(
+            random=CoordinatesSampler.random_box,
+            spheres=CoordinatesSampler.spheres
+        )
+        self.sampler = self.internal_methods[sampler]
         self.sampler_args = sampler_args
         self.device = device
         self.dtype = dtype
@@ -178,8 +184,63 @@ class CoordinatesSampler:
         r += mean
         return r
 
+    @staticmethod
+    def spheres(coords, device, dtype, grid='coarse', resolution=10, max_radius=10.0):
+        import numpy as np
+        n = coords.size()[0]
+        m = coords.size()[1]
+
+        design = np.loadtxt(LEBEDEV_DESIGN[grid])
+        design = torch.tensor(design, device=device, dtype=dtype)
+        phi, psi, _ = design.split(1, dim=1)
+        phi = (phi / 180.0) * math.pi
+        psi = (psi / 180.0) * math.pi
+        design_size = phi.size(0)
+        sphere_x = (phi.cos() * psi.sin()).flatten()
+        sphere_y = (phi.sin() * psi.sin()).flatten()
+        sphere_z = (psi.cos()).flatten()
+
+        sphere = torch.stack([sphere_x, sphere_y, sphere_z], dim=1)
+        radius = torch.arange(resolution, dtype=torch.float, device=device) / resolution
+        radius = 0.1 + (radius * (max_radius - 0.1))
+        n_spheres = radius.size()[0]
+        radius = radius.unsqueeze(1).unsqueeze(2)
+
+        sphere = sphere.unsqueeze(0).expand(n_spheres, design_size, 3)
+        concentric_spheres = radius * sphere
+        concentric_spheres = concentric_spheres.reshape(-1, 3)
+        concentric_spheres = concentric_spheres.unsqueeze(0)
+
+        ms = concentric_spheres.size()[1]
+
+        coords = coords.reshape(-1, 3)
+        coords_x, coords_y, coords_z = torch.split(coords, 1, dim=1)
+        mask_x = coords_x == 0
+        mask_y = coords_y == 0
+        mask_z = coords_z == 0
+        mask = mask_x * mask_y * mask_z
+        n_zeros = mask.sum()
+        mean_coords = coords.mean(dim=0)
+        std_coords = coords.std(dim=0)
+        off_centers = mean_coords + (torch.randn((n_zeros, 3), dtype=dtype, device=device) * std_coords)
+
+        coords = torch.masked_scatter(coords, mask, off_centers)
+        coords = coords.unsqueeze(1)
+        coords = coords.expand(n * m, ms, 3)
+
+        concentric_spheres = concentric_spheres + coords
+        concentric_spheres = concentric_spheres.reshape(n, m * ms, 3)
+        return concentric_spheres
+
     def __call__(self, coords):
         r = self.sampler(
             coords=coords, device=self.device, dtype=self.dtype, **self.sampler_args
         )
         return r
+
+
+def torch_eval_volume(fun: Callable, resolution:float, steps:int, device: torch.device):
+    modfun = lambda x: fun(
+        torch.tensor(x, device=device, dtype=torch.float).unsqueeze(0)).data.cpu().numpy()
+    dx = eval_volume(modfun, resolution, steps, shift=[0, 0, 0])
+    return dx
