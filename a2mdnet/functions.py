@@ -143,6 +143,8 @@ def distance_vectors(sample_coords, mol_coords, labels, device):
         n, m_sample, m_mol, 3,
         device=device, dtype=torch.float
     )
+    if labels is None:
+        labels = torch.zeros(n, m_mol, device=device, dtype=torch.float)
     # distance operation takes place by each element of the batch
     # the operation is performed by expanding the molecule and the
     # sampling
@@ -419,3 +421,16 @@ def spherical_harmonic(z, alpha):
     :return:
     """
     pass
+
+
+def gto_kernel(
+        r: torch.Tensor, rv: torch.Tensor,
+        a: torch.Tensor, px: torch.Tensor, py: torch.Tensor, pz: torch.Tensor
+):
+    rx, ry, rz = torch.split(rv, 1, dim=3)
+    rx = rx.squeeze(3).pow(px)
+    ry = ry.squeeze(3).pow(py)
+    rz = rz.squeeze(3).pow(pz)
+    buffer = (-r * a.unsqueeze(1)).exp()
+    buffer *= rx * ry * rz
+    return buffer

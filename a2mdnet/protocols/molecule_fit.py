@@ -33,8 +33,8 @@ if __name__ == '__main__':
     )
 
     cs = CoordinatesSampler(
-        sampler='spheres',
-        sampler_args=dict(resolution=10, max_radius=15.0),
+        sampler='box',
+        sampler_args=dict(),
         dtype=dtype, device=device
     )
 
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     #     resolution=0.25, steps=50, device=torch.device('cuda:0')
     # )
     # dx.write('C:/scratch/proto.dx')
-    sgd = SGD(params=benzene_t.parameters(), lr=1e-4)
+    sgd = SGD(params=benzene_t.parameters(), lr=1e-2)
     for i in range(100):
 
         sample = cs(benzene_t.coordinates.unsqueeze(0))
@@ -69,7 +69,9 @@ if __name__ == '__main__':
         benzene_t.zero_grad()
 
     dx = torch_eval_volume(
-        lambda x: benzene_t.forward(x),
-        resolution=0.25, steps=50, device=torch.device('cuda:0')
+        lambda x: benzene_t.forward(x) + proto_amd.protodensity(
+            x, benzene_t.labels.unsqueeze(0), benzene_t.coordinates.unsqueeze(0)
+        ),
+        resolution=0.25, steps=30, device=torch.device('cuda:0')
     )
     dx.write('C:/scratch/mol.dx')

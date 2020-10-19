@@ -153,7 +153,8 @@ class CoordinatesSampler:
 
         self.internal_methods = dict(
             random=CoordinatesSampler.random_box,
-            spheres=CoordinatesSampler.spheres
+            spheres=CoordinatesSampler.spheres,
+            box=CoordinatesSampler.regular_grid
         )
         self.sampler = self.internal_methods[sampler]
         self.sampler_args = sampler_args
@@ -232,6 +233,30 @@ class CoordinatesSampler:
         concentric_spheres = concentric_spheres.reshape(n, m * ms, 3)
         return concentric_spheres
 
+    @staticmethod
+    def regular_grid(coords, device, dtype, grid='medium', spacing=2.0):
+        sizes = dict(
+            coarse=10, medium=20, fine=30
+        )
+        try:
+            size = sizes[grid]
+        except KeyError:
+            raise IOError('use either coarse, medium or fine')
+
+        n = coords.size()[0]
+        x = torch.arange(size, dtype=dtype, device=device) / float(size)
+        x, y, z = torch.meshgrid([x, x, x])
+        r = torch.stack([x.flatten(), y.flatten(), z.flatten()], dim=1)
+        r = r.unsqueeze(0).expand([n, size ** 3, 3])
+        rotcoords, eivp, mean = CoordinatesSampler.principal_components(coords)
+        box_min = rotcoords.min(1, keepdim=True)[0] - spacing
+        box_max = rotcoords.max(1, keepdim=True)[0] + spacing
+        diff = (box_max + (box_min * -1))
+        r = (r * diff) + box_min
+        r = (eivp @ r.transpose(1, 2)).transpose(1, 2)
+        r += mean
+        return r
+
     def __call__(self, coords):
         r = self.sampler(
             coords=coords, device=self.device, dtype=self.dtype, **self.sampler_args
@@ -239,7 +264,7 @@ class CoordinatesSampler:
         return r
 
 
-def torch_eval_volume(fun: Callable, resolution:float, steps:int, device: torch.device):
+def torch_eval_volume(fun: Callable, resolution: float, steps: int, device: torch.device):
     modfun = lambda x: fun(
         torch.tensor(x, device=device, dtype=torch.float).unsqueeze(0)).data.cpu().numpy()
     dx = eval_volume(modfun, resolution, steps, shift=[0, 0, 0])

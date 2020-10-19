@@ -3,7 +3,7 @@ import torchani
 import torch.nn as nn
 from a2mdio.qm import WaveFunctionHDF5
 from typing import List
-
+import time
 
 class TorchElementA2MDNN(nn.Module):
 
@@ -752,55 +752,57 @@ class QPSegmentChargeNormalization(nn.Module):
 class QMDensityFun:
     def __init__(self, group, dtype, device):
         from a2mdio import WFN_SYMMETRY_INDEX
+        from a2mdnet import functions
         if dtype is None:
             dtype = torch.float
         self.dtype = dtype
         self.device = device
+        self.functions = functions
         dm, exp, syms, centers, coords, nprims, ncenters = self.load(group)
 
         self.dm = torch.tensor(dm, dtype=self.dtype, device=self.device)
         self.exp = torch.tensor(exp, dtype=self.dtype, device=self.device)
-        self.sym = torch.tensor(syms, dtype=torch.int32, device=self.device)
-        self.centers = torch.tensor(centers, dtype=torch.int32, device=self.device)
+        self.sym = syms
+        self.centers = torch.tensor(centers, dtype=torch.long, device=self.device)
         self.coords = torch.tensor(coords, dtype=self.dtype, device=self.device)
         self.nprims = nprims
         self.ncenters = ncenters
-        self.sym_index = torch.tensor(WFN_SYMMETRY_INDEX, dtype=self.dtype, device=self.device)
+        self.sym_map = WFN_SYMMETRY_INDEX
+        self.px = None
+        self.py = None
+        self.pz = None
+        self.expand_symmetry()
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args)
 
-    def gto(self, x, i):
+    def expand_symmetry(self):
+        px, py, pz = [], [], []
+        for sym_index in self.sym:
+            u = self.sym_map[sym_index]
+            px.append(u[0])
+            py.append(u[1])
+            pz.append(u[2])
+        self.px = torch.tensor(px, device=self.device, dtype=self.dtype).unsqueeze(0).unsqueeze(1)
+        self.py = torch.tensor(py, device=self.device, dtype=self.dtype).unsqueeze(0).unsqueeze(1)
+        self.pz = torch.tensor(pz, device=self.device, dtype=self.dtype).unsqueeze(0).unsqueeze(1)
 
-        center = self.centers[i]
-        coords = self.coords[center, :]
-        sym_vector = self.sym_index[self.sym[i], :]
-        exp = self.exp[i]
-        distance_vector = (x - coords)
-        distance_module = distance_vector.pow(2.0).sum(1)
-        gaussian_term = (-exp * distance_module).exp()
-        sph_term = distance_vector[:, 0].pow(sym_vector[0])
-        sph_term *= distance_vector[:, 1].pow(sym_vector[1])
-        sph_term *= distance_vector[:, 2].pow(sym_vector[2])
-        return gaussian_term * sph_term
-
-    def distance_vector(self, x, i):
-        dims = x.size(0)
-        coords = self.coords[i, :].repeat(dims).reshape(dims, 3)
-        rv = (x - coords)
-        r = rv.pow(2.0).sum(1)
-        return rv, r
+    def primitives(self, x):
+        x = x.unsqueeze(0)
+        rv = self.functions.distance_vectors(
+            x, self.coords.unsqueeze(0), labels=None, device=self.device
+        )
+        r = rv.pow(2.0).sum(3)
+        r = r.index_select(2, self.centers)
+        rv = rv.index_select(2, self.centers)
+        p = self.functions.gto_kernel(r, rv, self.exp.unsqueeze(0), self.px, self.py, self.pz)
+        return p
 
     def forward(self, x):
 
-        basis = torch.zeros(self.nprims, x.size(0), dtype=self.dtype, device=self.device)
-
-        for i in range(self.nprims):
-            basis[i, :] = self.gto(x, i)
-
-        p = basis * (self.dm @ basis)
-
-        return p.sum(0)
+        basis = self.primitives(x).squeeze(0)
+        p = (basis * (basis @ self.dm)).sum(1)
+        return p
 
     @staticmethod
     def load(cwfn):
@@ -840,6 +842,5 @@ class QMDensityBatch:
             key = self.map_index2group[i]
             _, qmfun = wfnh5[key]
             out.append(qmfun(x))
-
         out = torch.stack(out, dim=0)
         return out

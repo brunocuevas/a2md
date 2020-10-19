@@ -12,11 +12,12 @@ if __name__ == '__main__':
     print('-- coordinate sampler')
 
     cs = CoordinatesSampler(
-        device=torch.device('cpu'), dtype=torch.float, sampler='spheres',
-        sampler_args=dict(max_radius=2.0, resolution=2)
+        device=torch.device('cpu'), dtype=torch.float, sampler='box',
+        sampler_args=dict()
+        # sampler_args=dict(max_radius=2.0, resolution=2)
     )
 
-    r = torch.rand(5, 10, 3) - 0.5
+    r = torch.rand(3, 10, 3) - 0.5
     r *= 10.0
     u = cs(r)
 
@@ -26,7 +27,7 @@ if __name__ == '__main__':
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(r[:, 0], r[:, 1], r[:, 2], color='red')
-    ax.scatter(u[:, 0], u[:, 1], u[:, 2], color='blue')
+    ax.scatter(u[:, 0], u[:, 1], u[:, 2], color='blue', alpha=0.1)
     plt.show()
     print('-- done!')
     print('-- starting qm sampling')

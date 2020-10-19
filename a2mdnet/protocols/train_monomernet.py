@@ -20,7 +20,7 @@ import sys
 @click.option('--learning_rate', default=1e-4, help='learning_rate')
 @click.option('--device', default='cuda:0', help='device at which the network will be stored')
 @click.option('--epochs', default=200, help='number of iterations around the dataset')
-@click.option('--sampling', type=click.Choice(['spheres', 'random']), default='spheres',
+@click.option('--sampling', type=click.Choice(['spheres', 'random', 'box']), default='spheres',
               help='either spherical or random')
 @click.option('--sampling_args', default=None, help='json containing a dict with args')
 @click.option('--batch_size', default=16, help='number of molecules at each iteration')
@@ -137,7 +137,7 @@ def train(
             preddensity = mn.forward(
                 coordinates=sample, labels=labels, mol_coordinates=coords, charge=dcharge
             )
-            loss = ((moldensity - preddensity).pow(2.0) * (density ** -1)).sum()
+            loss = ((moldensity - preddensity).pow(2.0)).sum()
             loss.backward()
             opt.step()
             mn.zero_grad()
