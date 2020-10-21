@@ -7,6 +7,7 @@ from a2mdio.utils import rename_atoms
 from a2mdio import BABEL2STANDARD
 import numpy as np
 import json
+import h5py
 import click
 import time
 import sys
@@ -218,6 +219,24 @@ def __many_store_wfn(name, out, save_dm, save_coeff, program):
         print(".. {:s}".format(wfn_name))
         wfn = WaveFunction.from_file(wfn_name, program=program)
         g.add(wfn_name.replace('.wfn', ''), wfn, save_dm=save_dm, save_coeff=save_coeff)
+    f.close()
+
+
+def __merge_h5(name, out):
+
+    with open(name) as f:
+        contents = [i.strip() for i in f.readlines()]
+
+    f = h5py.File(out, 'w')
+
+    for file in contents:
+        print('processing {:s} file'.format(file))
+        tmp = h5py.File(file, 'r')
+        keys = tmp.keys()
+        for k in keys:
+            print('\t adding external link {:s}'.format(k))
+            f[k] = h5py.ExternalLink(file, k)
+
     f.close()
 
 
@@ -503,6 +522,25 @@ def many_compile_wfn(name, out, save_dm, save_coeff, program):
     __many_store_wfn(name, out, save_dm, save_coeff, program)
 
 
+@click.command()
+@click.argument('name')
+@click.argument('out')
+def merge_sources(name, out):
+    """
+
+    Generates and HDF5 containing the information of all the hdf5 files present in NAME through symbolic links.
+
+    Example:
+        many-compile-wfn --save_dm=True --save_coeff=False wfn_list1.txt set1.wfn.hdf5
+        many-compile-wfn --save_dm=True --save_coeff=False wfn_list2.txt set2.wfn.hdf5
+        ls set?.wfn.hdf5 > source
+        merge-sources source final.wfn.hdf5
+
+
+    """
+    __merge_h5(name, out)
+
+
 cli.add_command(prepare_qm)
 cli.add_command(update_mol2)
 cli.add_command(convert_sample)
@@ -519,6 +557,7 @@ cli.add_command(many_generate_ppp)
 cli.add_command(many_extract_forces)
 cli.add_command(many_relabel_mol2)
 cli.add_command(many_compile_wfn)
+cli.add_command(merge_sources)
 
 if __name__ == "__main__":
     cli()
