@@ -85,7 +85,7 @@ def train(
     print('-- using {:s} for molecular electron density'.format(molecule))
     proto_amd = AMDParameters.from_file(protomolecule)
     mol_amd = AMDParameters.from_file(molecule)
-    gamd = GenAMD(proto_amd, device=torch.device('cuda:0'), dtype=torch.float)
+    gamd = GenAMD(proto_amd, device=device, dtype=torch.float)
 
     print('-- declaring sampler')
     cs = CoordinatesSampler(
