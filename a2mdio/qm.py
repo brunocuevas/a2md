@@ -422,7 +422,7 @@ class WaveFunction(A2MDlibQM):
         if save_dm:
             wfn_dict['density_matrix'] = self.density_matrix
         if save_coeff:
-            wfn_dict['coefficients'] = self.density_matrix
+            wfn_dict['coefficients'] = self.coeff
         return wfn_dict
 
 

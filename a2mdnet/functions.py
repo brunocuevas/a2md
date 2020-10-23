@@ -116,7 +116,7 @@ def generate_voxel(r_min, r_max, resolution):
                 yield voxel_r_min, voxel_r_min + resolution
 
 
-def distance_vectors(sample_coords, mol_coords, labels, device):
+def distance_vectors(sample_coords, mol_coords, labels, device, dtype=torch.float):
     """
 
     Takes the coordinates of the molecule and the sampling coordinates,
@@ -132,6 +132,7 @@ def distance_vectors(sample_coords, mol_coords, labels, device):
     :type labels: torch.Tensor
     :param device:
     :type device: torch.device
+    :param dtype:
     :return: Tensor (n, m, Ma, 3, dtype=torch.float)
     """
     # dimensions
@@ -139,12 +140,9 @@ def distance_vectors(sample_coords, mol_coords, labels, device):
     m_sample = sample_coords.size(1)
     m_mol = mol_coords.size(1)
     # output tensor
-    dv = torch.zeros(
-        n, m_sample, m_mol, 3,
-        device=device, dtype=torch.float
-    )
+    dv = torch.zeros(n, m_sample, m_mol, 3, device=device, dtype=dtype)
     if labels is None:
-        labels = torch.zeros(n, m_mol, device=device, dtype=torch.float)
+        labels = torch.zeros(n, m_mol, device=device, dtype=torch.long)
     # distance operation takes place by each element of the batch
     # the operation is performed by expanding the molecule and the
     # sampling
@@ -339,7 +337,8 @@ def expand_parameter(labels, param):
     """
     labels_copy = labels.clone()
     labels_copy[labels == -1] = 0
-    output = torch.zeros_like(labels, dtype=torch.float)
+    dtype = param.dtype
+    output = torch.zeros_like(labels, dtype=dtype)
 
     output.masked_scatter_(
         labels != -1,

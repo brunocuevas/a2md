@@ -503,8 +503,8 @@ def compile_wfn(name, out, save_dm, save_coeff, program):
 
 
 @click.command()
-@click.option('--save_dm', default=True, help='keep precalculated density matrix')
-@click.option('--save_coeff', default=False, help='keep molecular orbital coefficients')
+@click.option('--save_dm', default=True, type=bool, help='keep precalculated density matrix')
+@click.option('--save_coeff', default=False, type=bool, help='keep molecular orbital coefficients')
 @click.option('--program', default='g09', help='either orca or g09')
 @click.argument('name')
 @click.argument('out')
