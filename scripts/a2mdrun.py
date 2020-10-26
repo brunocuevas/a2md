@@ -116,20 +116,18 @@ def evaluate(name, param_file, coordinates, output):
 @click.option('--output', default=None, help="file where to store the output parameters")
 @click.option('--cluster', default=None, help="use rbf to clusterize by distance signature")  # to modify in the future
 @click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
+@click.option('--charge_str', default=None, help="only for semirestricted opt")
 @click.argument('name')
 @click.argument('sample')
-def fit(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose):
+def fit(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose, charge_str):
     """
     Fits a linear density model to a density sa
 
-
-
-
     """
-    __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose)
+    __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose, charge_str)
 
 
-def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose):
+def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose, charge_str):
     """
     ajusts the parameters of a density model to a sample of electron density
     """
@@ -194,6 +192,14 @@ def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, 
         logger.info("regularization constat is changed to {:12.4e}".format(regularization_constant))
         dm.set_regularization_constant(regularization_constant)
 
+    if opt_mode == 'semirestricted':
+        logger.info('Using atomic number as charge. All atoms go neutral')
+        dm.use_atomic_number_as_charge()
+
+    if charge_str is not None:
+        logger.info('renormalizing charge by segment : {:s}'.format(charge_str))
+        dm.modify_charge_by_segment(charge_str)
+
     logger.info("starting optimization, using a opt_mode={:s}".format(opt_mode))
     dm.optimize(sample[:, :3], sample[:, 3], optimization_mode=opt_mode)
     logger.info("finished optimization")
@@ -218,8 +224,9 @@ def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, 
 @click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
 @click.option('--cluster', default=None, help="use rbf to clusterize by distance signature")  # to modify in the future
 @click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
+@click.option('--charge_str', default=None, help="only for semirestricted")
 @click.argument('names_file')
-def fit_many(names_file, opt_mode, regularization_constant, scheme, cluster, verbose):
+def fit_many(names_file, opt_mode, regularization_constant, scheme, cluster, verbose, charge_str):
     """
     fits many compounds
     """
@@ -233,7 +240,7 @@ def fit_many(names_file, opt_mode, regularization_constant, scheme, cluster, ver
     for i, (m, s, o) in enumerate(zip(mol2_, sample_, out_)):
         __fit_call(
             m, s, opt_mode=opt_mode, regularization_constant=regularization_constant, output=o,
-            cluster=cluster, verbose=verbose, scheme=scheme
+            cluster=cluster, verbose=verbose, scheme=scheme, charge_str=charge_str
         )
     global_end = time.time()
     time_elapsed = global_end - global_start

@@ -10,7 +10,7 @@ from a2md.baseclass import A2MDBaseClass
 from a2mdio.molecules import Mol2, PDB
 from a2md.utils import convert_connectivity_tree_to_pairs
 from a2mdio import PDB_PROTEIN_TYPE_CHARGES, PDB_PROTEIN_CHARGES, PDB_PROTEIN_TYPES, PDB_PROTEIN_TOPOLOGY
-from a2mdio import MAP_AN2SYMBOL
+from a2mdio import get_symbol
 from typing import List, Union, Callable
 
 CLUSTERING_TRESHOLD_VALUE = 0.02
@@ -630,7 +630,7 @@ class Molecule(A2MDBaseClass):
         :return:
         """
         if self.atom_labels is None:
-            return [MAP_AN2SYMBOL[i] for i in self.atomic_numbers]
+            return [get_symbol(i) for i in self.atomic_numbers]
         else:
             return self.atom_labels
 
@@ -676,7 +676,7 @@ class Molecule(A2MDBaseClass):
     def optimize(
             self, training_coordinates: np.ndarray, training_density: np.ndarray,
             optimization_mode: str = 'restricted',
-            weights: np.ndarray = None
+            weights: Union[np.ndarray, str] = 'default'
     ):
         """
         sets the coefficients associated to each support function by
@@ -716,11 +716,25 @@ class Molecule(A2MDBaseClass):
 
         n_training = training_coordinates.shape[0]
         if weights is None:
-            w = np.ones(n_training, dtype='float64') / n_training
+            w = np.ones(n_training, dtype='float64')
         else:
-            if n_training != weights.size:
-                raise IOError("weights size do not match sample size")
-            w = weights
+            if type(weights) is np.ndarray:
+                if n_training != weights.size:
+                    raise IOError("weights size do not match sample size")
+                w = weights
+            if type(weights) is str:
+                if weights == 'default':
+                    w = np.ones(n_training, dtype='float64') / n_training
+                elif weights == 'inverse':
+                    w = np.power(training_density, -1)
+                elif weights == 'sqinverse':
+                    w = np.power(training_density, -2)
+                elif weights == 'log':
+                    w = -np.log(training_density)
+                else:
+                    raise IOError("unknown weight term : {:s}".format(weights))
+            else:
+                raise IOError("weights were not understood. Please use either an array or a keyword")
 
         for i, frozen_fun in enumerate(frozen_ensemble):
             j = frozen_map2center[i]
@@ -1008,7 +1022,7 @@ class Polymer(Molecule):
             except KeyError:
 
                 missing_keys.append((atom_resname, atom_name))
-                current_label = MAP_AN2SYMBOL[atomic_number]
+                current_label = get_symbol(atomic_number)
                 for fun in self.parametrization_default['_MODEL'][current_label]:
                     if fun['_CONNECT'] == '_NONE':
                         parameters.append(

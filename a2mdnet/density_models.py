@@ -432,7 +432,7 @@ class GenAMD:
         """
         dv = distance_vectors(
             sample_coords=coordinates, mol_coords=centers,
-            labels=labels, device=self.device
+            labels=labels, device=self.device, dtype=self.dtype
         )
         r = distance(dv)
         density = torch.zeros_like(r)
@@ -464,7 +464,7 @@ class GenAMD:
         split_p = self.p.split(1, dim=1)
         split_b = self.b.split(1, dim=1)
         split_a = self.a.split(1, dim=1)
-        factorial = lambda n: (n + 1).to(torch.float).lgamma().exp()
+        factorial = lambda n: (n + 1).to(self.dtype).lgamma().exp()
         for i, (p, b, a) in enumerate(zip(split_p, split_b, split_a)):
             p_s = expand_parameter(labels, p).to(self.device)
             b_s = expand_parameter(labels, b).to(self.device)
@@ -490,7 +490,7 @@ class GenAMD:
         """
         dv = distance_vectors(
             sample_coords=coordinates, mol_coords=centers,
-            labels=labels, device=self.device
+            labels=labels, device=self.device, dtype=self.dtype
         )
         r = distance(dv)
         density = torch.zeros_like(r)

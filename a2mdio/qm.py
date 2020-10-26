@@ -653,7 +653,11 @@ class WaveFunctionHDF5:
         """
 
         wfn_dict = wfn.dump(save_dm=save_dm, save_coeff=save_coeff)
-        cwfn = self.data.create_group(key)
+        try:
+            cwfn = self.data.create_group(key)
+        except ValueError:
+            print('WARNING : {:s} key already exists. Skipping.'.format(key))
+            return
         cwfn.create_dataset('coordinates', data=wfn_dict['coordinates'], compression='gzip')
         cwfn.create_dataset('symmetry', data=wfn_dict['symmetry'], compression='gzip')
         cwfn.create_dataset('centers', data=wfn_dict['centers'], compression='gzip')

@@ -235,7 +235,10 @@ def __merge_h5(name, out):
         keys = tmp.keys()
         for k in keys:
             print('\t adding external link {:s}'.format(k))
-            f[k] = h5py.ExternalLink(file, k)
+            try:
+                f[k] = h5py.ExternalLink(file, k)
+            except RuntimeError:
+                print('WARNING : link {:s} already exists. Skipping'.format(k))
 
     f.close()
 
