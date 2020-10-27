@@ -1,13 +1,16 @@
 from a2mdio.molecules import Mol2
 from a2mdnet.data import convert_label2tensor
 from a2md.utils import integrate_from_dict
-from a2mdnet.data import match_fun_names
+from a2mdnet.data import match_fun_names, Coordinates
 from a2mdio.utils import eval_volume
+from a2mdio.units import bohr, Unit
 from a2md import LEBEDEV_DESIGN
 import warnings
 import torch
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple, List
 import math
+import numpy as np
+
 
 def get_charges(l, t, i_iso, i_aniso, iso, aniso, device):
     """
@@ -143,7 +146,7 @@ class Parametrizer:
 class CoordinatesSampler:
     def __init__(
             self, device: torch.device, dtype: torch.dtype,
-            sampler: str, sampler_args: Dict
+            sampler: str, sampler_args: Dict, units: Unit = bohr
     ):
         """
         coordinates sampler
@@ -160,6 +163,7 @@ class CoordinatesSampler:
         self.sampler_args = sampler_args
         self.device = device
         self.dtype = dtype
+        self.units = units
 
     @staticmethod
     def principal_components(coords: torch.Tensor):
@@ -257,11 +261,15 @@ class CoordinatesSampler:
         r += mean
         return r
 
-    def __call__(self, coords):
+    def __call__(self, coords: Coordinates, *args) -> torch.Tensor:
+
+        coords = coords.get_cartessian(self.units)
+
         r = self.sampler(
-            coords=coords, device=self.device, dtype=self.dtype, **self.sampler_args
+            coords=coords, device=self.device, dtype=self.dtype, *args, **self.sampler_args
         )
-        return r
+
+        return Coordinates(r, units=self.units)
 
 
 def torch_eval_volume(fun: Callable, resolution: float, steps: int, device: torch.device):
@@ -269,3 +277,279 @@ def torch_eval_volume(fun: Callable, resolution: float, steps: int, device: torc
         torch.tensor(x, device=device, dtype=torch.float).unsqueeze(0)).data.cpu().numpy()
     dx = eval_volume(modfun, resolution, steps, shift=[0, 0, 0])
     return dx
+
+
+class IntegrationGrid:
+
+    def __init__(
+            self, device: torch.device, dtype: torch.dtype, grid: str = 'coarse',
+            radial_resolution: int = 15,
+            units: Unit = bohr, softening: int = 3, rm: float = 5.0
+    ):
+        """
+        Integration grid
+        Generates a integration grid suitable for electron density problems. To do so,
+        concentrical Lebdenev spheres are placed on top of the molecule coordinates, using
+        radius from Gauss-Chebysev quadrature; then weights are calculated using the
+        elliptic coordinates suggested by Becke (JCP, 1988).
+
+        :param device:
+        :param dtype:
+        :param grid: use either coarse, medium or tight
+        :param radial_resolution: number of bins. Values larger than 15 are ok
+        :param units: use a unit with a bohr reference unit
+        :param softening: number of softening passes
+        :param rm: middle point for radiual integration. In coordinates units
+
+        """
+        self.device = device
+        self.dtype = dtype
+        self.sphere, self.sphere_weights, self.design_size = self.load_design(grid=grid)
+        self.units = units
+        self.radial_resolution = radial_resolution
+        self.softening = softening
+        self.rm = rm
+
+    def load_design(self, grid) -> Tuple[torch.Tensor, torch.Tensor, int]:
+        """
+        Loads one of the precalculated designs for lebdenev spheres
+        :param grid:
+        :return:
+        """
+        import numpy as np
+        design = np.loadtxt(LEBEDEV_DESIGN[grid])
+        design = torch.tensor(design, device=self.device, dtype=self.dtype)
+        phi, psi, weights = design.split(1, dim=1)
+        phi = (phi / 180.0) * math.pi
+        psi = (psi / 180.0) * math.pi
+        design_size = phi.size(0)
+        sphere_x = (phi.cos() * psi.sin()).flatten()
+        sphere_y = (phi.sin() * psi.sin()).flatten()
+        sphere_z = (psi.cos()).flatten()
+        weights = weights.flatten()
+        sphere = torch.stack([sphere_x, sphere_y, sphere_z], dim=1)
+        return sphere, weights, design_size
+
+    def integration_grid(self, coords: Coordinates) -> Tuple[Coordinates, torch.Tensor]:
+        """
+        Generates grid on top of the coordinates
+        NOTE: There is no implementation right now to avoid the padding problem!
+        :param coords: Coordinates
+        :return:
+        """
+
+        dm = coords.get_distance_matrix(self.units)
+        coords = coords.get_cartessian(self.units)
+
+        n = coords.size()[0]
+        m = coords.size()[1]
+
+        # Defining spherical grids
+        ms, concentric_spheres, weights = self.spheric_integration_grid()
+        # Placing spheres at molecule coordinates
+        coords_ = coords.reshape(-1, 3)
+        coords_ = coords_.unsqueeze(1)
+        coords_ = coords_.expand(n * m, ms, 3)
+        concentric_spheres = concentric_spheres + coords_
+        concentric_spheres = concentric_spheres.reshape(n, m * ms, 3)
+        weights = weights.unsqueeze(1).expand(1, m, ms).reshape(1, m * ms)
+        # Generating list of sampling centers
+        sampling_centers = torch.arange(
+            m, device=self.device, dtype=torch.long
+        ).unsqueeze(0).unsqueeze(2).expand(n, m, ms).reshape(n, m * ms)
+        # Tesellation
+        v = self.becke_tesellation(
+            x=concentric_spheres, r=coords, dm=dm, i=sampling_centers
+        )
+        w = v * weights
+
+        concentric_spheres = Coordinates(values=concentric_spheres, units=self.units)
+
+        return concentric_spheres, w
+
+    def spheric_integration_grid(
+            self
+    ) -> Tuple[int, torch.Tensor, torch.Tensor]:
+        """
+        Generates concentric Lebdenev-Gauss Chebysev spheres
+        NOTE: There is no implementation right now to avoid the padding problem!
+        :return:
+        """
+
+        weights = self.sphere_weights.clone()
+        sphere = self.sphere.clone()
+
+        # Generating the radial component
+        # Using Gauss-Chebysev with variable change
+        #
+        #       r = rm ( 1 + x ) / ( 1 - x )
+        #
+
+        i = torch.arange(1, self.radial_resolution + 1, dtype=self.dtype, device=self.device)
+        z = - (math.pi * ((2.0 * i) - 1.0) / (2.0 * self.radial_resolution)).cos()
+        dr = 2.0 * self.rm * torch.pow(1 - z, -2.0)
+        r = self.rm * (1 + z) / (1 - z)
+        w = torch.sqrt(1 - z.pow(2.0)) * dr * math.pi / self.radial_resolution
+        w = r.pow(2.0) * 4.0 * math.pi * w
+
+        # Stacking concentric spheres
+        n_spheres = r.size()[0]
+        r = r.unsqueeze(1).unsqueeze(2)
+        sphere = sphere.unsqueeze(0).expand(n_spheres, self.design_size, 3)
+        weights = weights.unsqueeze(0).expand(n_spheres, self.design_size)
+        concentric_spheres = r * sphere
+        concentric_spheres = concentric_spheres.reshape(-1, 3)
+        concentric_spheres = concentric_spheres.unsqueeze(0)
+        thinness = w.unsqueeze(1)
+        weights = weights * thinness
+        weights = weights.reshape(-1).unsqueeze(0)
+        ms = concentric_spheres.size()[1]
+        return ms, concentric_spheres, weights
+
+    def becke_tesellation(
+        self, x: torch.Tensor, r: torch.Tensor, dm: torch.Tensor,
+        i: torch.Tensor
+    ) -> torch.Tensor:
+        """
+
+        Generates a weight scheme to avoid overlap
+
+        :param x: sample
+        :param r: centers
+        :param dm: centers distance matrix
+        :param i: map sample -> center
+        :return:
+        """
+
+        nx = x.size()[0]  # number of sample matches. It should match nx
+        mx = x.size()[1]  # number of samples per molecule
+        nr = r.size()[0]  # number of molecules
+        mr = r.size()[1]  # number of atoms per molecule
+        if nx != nr:
+            raise IOError("batch dims don't not match: {:d} {:d}".format(nx, nr))
+
+        # calculate r-r distance matrix
+
+        # calculate x-r distance matrix
+        # dim 1 will be r and dim 2 will be x
+        # final dims should be [nr, mx, mr]
+
+        x_exp = x.unsqueeze(2).expand(nr, mx, mr, 3)
+        r_exp = r.unsqueeze(1).expand(nr, mx, mr, 3)
+        rx_dm = torch.norm(x_exp - r_exp, dim=3)
+        del x_exp, r_exp
+
+        # calculate (x-r)-(x-r)T distance vectors
+
+        rx_dm_expanded1 = rx_dm.unsqueeze(3).expand(nr, mx, mr, mr)
+        rx_dm_expanded2 = rx_dm.unsqueeze(2).expand(nr, mx, mr, mr)
+        xx_dm_expanded = dm.unsqueeze(0)
+        mu = (rx_dm_expanded1 - rx_dm_expanded2) / xx_dm_expanded.clamp(min=1e-12)
+
+        del rx_dm_expanded1, rx_dm_expanded2, xx_dm_expanded
+        del dm, rx_dm
+        # soft-cutoff function
+
+        for _ in range(1, self.softening):
+            mu = 0.5 * mu * (3.0 - (mu.pow(2.0)))
+
+        mu = 0.5 * (1 - mu)
+
+        # diagonal fill
+
+        diag_fill = torch.eye(
+            mr, mr, device=self.device, dtype=self.dtype
+        ).unsqueeze(0).unsqueeze(1).expand(nr, mx, mr, mr)
+
+        mu += (diag_fill * 0.5)
+
+        # productory
+
+        mu = mu.prod(dim=3)
+
+        # mu should be now [nr, mx, mr] containing
+        # the weights of each nuclei for each sampling point
+
+        i = i.unsqueeze(2)
+
+        v_i = torch.gather(mu, 2, i).squeeze(2)
+        v_all = mu.sum(2)
+        w = v_i / v_all
+
+        # w should be now [nr, mx] containing the weight of each sample
+
+        return w
+
+
+class DxGrid:
+
+    def __init__(self, device: torch.device, dtype: torch.dtype, resolution: float, spacing: float, units: Unit = bohr):
+        """
+        Dx grid
+        Eases representation of electron density in a volumetric format that can be read by popular chemistries
+        software as Chimera
+
+
+        :param device:
+        :param dtype:
+        :param resolution: it shares units with the coordinates
+        :param spacing: it shares units with the coordinates
+        :param units: units of the coordinates
+        """
+
+        self.device = device
+        self.dtype = dtype
+        self.resolution = resolution
+        self.spacing = spacing
+        self.units = units
+        from a2mdio.units import angstrom
+        from a2mdio.volumes import Volume
+        self.angstrom = angstrom
+        self.volume = Volume
+
+    def generate_grid(self, coords: Coordinates):
+        """
+        Generates a box that wraps coordinates using a voxel of size (resolution^3)
+        :param coords:
+        :return:
+        """
+        coords = coords.get_cartessian(unit=self.units).squeeze(0)
+
+        # rotcoords, basis, mean = CoordinatesSampler.principal_components(coords)
+        basis = torch.eye(3, 3, dtype=self.dtype, device=self.device) * (self.resolution * (self.units / self.angstrom))
+        box_min = coords.min(0, keepdim=False)[0] - self.spacing
+        box_max = coords.max(0, keepdim=False)[0] + self.spacing
+        diff = (box_max + (box_min * -1))
+        dims = ((diff / self.resolution).floor() + 1).to(torch.long)
+
+        xx = torch.arange(dims[0], dtype=self.dtype, device=self.device) * self.resolution
+        yy = torch.arange(dims[1], dtype=self.dtype, device=self.device) * self.resolution
+        zz = torch.arange(dims[2], dtype=self.dtype, device=self.device) * self.resolution
+
+        xg, yg, zg = torch.meshgrid(xx, yy, zz)
+        xg = xg.flatten()
+        yg = yg.flatten()
+        zg = zg.flatten()
+
+        rgrid = torch.stack([xg, yg, zg], dim=1)
+
+        rgrid += box_min
+        rgrid = rgrid.reshape(-1, 3).unsqueeze(0)
+
+        box_min *= (self.units / self.angstrom)
+        rgrid = Coordinates(rgrid, units=self.units)
+        return rgrid, box_min.tolist(), basis.data.cpu().numpy(), dims.tolist()
+
+    def dx(self, grid: torch.Tensor, r0: List[float], basis: np.ndarray, dims: List[int]):
+        """
+        converts a tensor into a grid that can be stored in dx format
+        :param grid:
+        :param r0:
+        :param basis:
+        :param dims:
+        :return:
+        """
+        grid = grid.reshape(dims[0], dims[1], dims[2]).data.cpu().numpy()
+        return self.volume(
+            filename=None, dxvalues=grid, r0=r0, basis=basis
+        )

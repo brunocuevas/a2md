@@ -8,6 +8,9 @@ import torch
 import json
 import warnings
 from pathlib import Path
+from typing import List, Dict
+from a2mdio.units import Unit, angstrom
+
 
 def convert_label2tensor(label, device=torch.device('cpu')):
     u = [ELEMENT2NN[i] for i in label]
@@ -46,6 +49,123 @@ def match_old_fun_names(fun):
 def match_fun_names(fun):
     fn = fun['support_type']
     return FUNCTION_NAMES2POSITION[fn]
+
+
+def mol2tensor(mm: Mol2, device: torch.device, dtype: torch.dtype):
+    """
+
+    :param mm:
+    :param device:
+    :param dtype:
+    :return: number of atoms, number of bonds, coords, labels, connectivity, charges
+    """
+    na = mm.get_number_atoms()
+    nb = mm.get_number_bonds()
+
+    coords_tensor = torch.tensor(mm.get_coordinates(), device=device, dtype=dtype)
+    labels_tensor = convert_label2tensor(mm.get_atomic_numbers(), device=device)
+    connectivity_tensor = torch.tensor(mm.get_bonds() - 1, device=device, dtype=torch.uint8)
+    charges_tensor = torch.tensor(mm.get_absolute_charges(), device=device, dtype=dtype)
+
+    return na, nb, coords_tensor, labels_tensor, connectivity_tensor, charges_tensor
+
+
+class DatasetCard:
+    def __init__(
+            self, name: str, description: str, n_molecules: int, max_atoms: int, max_bonds: int, path_dict: Dict,
+            index: List[str], properties: Dict
+    ):
+        self.name = name
+        self.description = description
+        self.n_molcules = n_molecules
+        self.max_atoms = max_atoms
+        self.max_bonds = max_bonds
+        self.path_dict = path_dict
+        self.index = index
+
+    @staticmethod
+    def from_json(filename):
+        with open(filename) as f:
+            card = json.load(f)
+        name = card['name']
+        description = card['description']
+        n_molecules = card['n_mol']
+        max_atoms = card['max_atoms']
+        max_bonds = card['max_bonds']
+        path_dict = card['path_dict']
+        index = card['index']
+        properties = card['properties']
+        return DatasetCard(
+            name, description, n_molecules, max_atoms, max_bonds, path_dict, index, properties
+        )
+
+    def to_json(self, filename):
+        with open(filename) as f:
+            json.dump(self.__dict__, f, indent=4)
+
+    def get_path(self, term):
+        try:
+            return Path(self.path_dict[term])
+        except KeyError:
+            raise KeyError('term not found')
+
+
+class Coordinates:
+    def __init__(self, values: torch.Tensor, units: Unit, **kwargs):
+        self.__cartessian = torch.as_tensor(values, **kwargs)
+
+        if 'device' not in kwargs.keys():
+            self.device = self.__cartessian.device
+        else:
+            self.device = kwargs['device']
+
+        if 'dtype' not in kwargs.keys():
+            self.dtype = self.__cartessian.dtype
+        else:
+            self.dtype = kwargs['dtype']
+
+        self.__units = units
+        self.__distance_matrix = None
+
+    def distance_matrix_(self):
+
+        if len(self.__cartessian.size()) == 3:
+            n = self.__cartessian.size()[0]
+            m = self.__cartessian.size()[1]
+            d = self.__cartessian.size()[2]
+            r1 = self.__cartessian.unsqueeze(1).expand(n, m, m, d)
+            r2 = self.__cartessian.unsqueeze(2).expand(n, m, m, d)
+            distance_matrix = (r1 - r2).norm(dim=3)
+            self.__distance_matrix = distance_matrix
+        elif len(self.__cartessian.size()) == 2:
+            m = self.__cartessian.size()[0]
+            d = self.__cartessian.size()[1]
+            r1 = self.__cartessian.unsqueeze(0).expand(m, m, d)
+            r2 = self.__cartessian.unsqueeze(1).expand(m, m, d)
+            distance_matrix = (r1 - r2).norm(dim=2)
+            self.__distance_matrix = distance_matrix
+        else:
+            return None
+
+    def get_cartessian(self, unit: Unit):
+        if unit.reference_unit == self.__units.reference_unit:
+            return self.__cartessian * (self.__units / unit)
+        else:
+            raise RuntimeError('units dont share a common reference unit')
+
+    def get_distance_matrix(self, unit: Unit):
+        if unit.reference_unit == self.__units.reference_unit:
+            if self.__distance_matrix is None:
+                self.distance_matrix_()
+            return self.__distance_matrix * (self.__units / unit)
+        else:
+            raise RuntimeError('units dont share a common reference unit')
+
+    def unsqueeze(self, dim):
+        return Coordinates(self.__cartessian.unsqueeze(dim), units=self.__units)
+
+    def squeeze(self, dim):
+        return Coordinates(self.__cartessian.squeeze(dim), units=self.__units)
 
 
 class MolecularDataset(data.Dataset):
@@ -301,7 +421,8 @@ class MolecularElectronDensityDataset(MolecularDataset):
 
 class MonomerDataset:
     def __init__(
-            self, device, dtype, ids=None, molecular_data_path=None, max_atoms=50, max_bonds=50
+            self, device, dtype, ids=None, molecular_data_path=None, max_atoms=50, max_bonds=50,
+            **sampler_kwargs
     ):
         """
         MonomerDataset
@@ -314,7 +435,7 @@ class MonomerDataset:
         :param ids: names of the molecules that will be read by this data loader
         :param molecular_data_path: path where Mol2 files of specified molecules should be located
         """
-
+        from torch.utils.data import DataLoader
         self.ids = ids
 
         if type(molecular_data_path) is not Path:
@@ -343,6 +464,8 @@ class MonomerDataset:
                     print("-", end="")
                 elif idx % 1000 == 0 and idx != 0:
                     print("-", end=" {:8d}\n".format(idx))
+
+        self.loader = DataLoader(self, **sampler_kwargs)
 
     def __len__(self):
         return len(self.ids)
@@ -380,6 +503,20 @@ class MonomerDataset:
             item, self.labels[item], self.connectivity[item], self.coordinates[item],
             self.charge[item]
         ]
+
+    @staticmethod
+    def from_datasetcard(ds: DatasetCard, device: torch.device, dtype: torch.dtype):
+        return MonomerDataset(
+            device=device, dtype=dtype, ids=ds.index,
+            molecular_data_path=ds.get_path('mol'), max_atoms=ds.max_atoms,
+            max_bonds=ds.max_bonds
+        )
+
+    def epoch(self):
+
+        for i, labels, topo, coords, q in self.loader:
+            coords = Coordinates(coords, units=angstrom)
+            yield i, labels, topo, coords, q
 
 
 class PolymerDataset:
@@ -475,3 +612,11 @@ class PolymerDataset:
             item, self.labels[item], self.connectivity[item], self.coordinates[item],
             self.charge[item], self.segments[item], self.segcharge[item]
         ]
+
+    @staticmethod
+    def from_datasetcard(ds: DatasetCard, device: torch.device, dtype: torch.dtype):
+        return PolymerDataset(
+            device=device, dtype=dtype, ids=ds.index,
+            molecular_data_path=ds.get_path('mol'), max_atoms=ds.max_atoms,
+            max_bonds=ds.max_bonds
+        )

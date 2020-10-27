@@ -3,6 +3,7 @@ from a2mdnet.data import MonomerDataset
 from a2mdnet.modules import QMDensityBatch
 from a2mdnet.utils import CoordinatesSampler
 from a2mdio.params import AMDParameters
+from a2mdnet.functionals import mean_squared_error, kl_divergence
 from torch.utils import data
 from pathlib import Path
 import torch
@@ -15,17 +16,18 @@ import sys
 @click.command()
 @click.option('--path', default=None, help='location of the nns')
 @click.option('--device', default='cuda:0', help='device at which the network will be stored')
-@click.option('--sampling', type=click.Choice(['spheres', 'random']), default='spheres',
-              help='either spherical or random')
-@click.option('--batch_size', default=8, help='number of molecules per iteration')
-@click.option('--sampling_args', default=None, help='json containing a dict with args')
-@click.option('--replicas', default=1, help='repetitions of the dataset')
+@click.option('--batch_size', default=1, help='number of molecules per iteration')
+@click.option(
+    '--grid', type=click.Choice(['extra_coarse', 'coarse', 'medium', 'tight']),
+    default='coarse', help='type of lebdenev sphere'
+)
+@click.option('--resolution', type=int, default=20, help='gauss-chebysev radial resolution')
 @click.argument('networks')
 @click.argument('dataset')
 @click.argument('protomolecule')
 def test(
         networks: str, dataset: str, protomolecule: str, path: str, device: str,
-        sampling: str, sampling_args: str, batch_size: int, replicas: int
+        batch_size: int,  grid: str, resolution: int
 ):
     print('-- monomernet testing: {:s}'.format(networks))
     networks = Path(networks)
@@ -63,13 +65,6 @@ def test(
     device = torch.device(device)
     float_dtype = torch.float
 
-    print('-- checking sampler args')
-    if sampling_args is not None:
-        with open(sampling_args) as f:
-            sampling_args = json.load(f)
-    else:
-        sampling_args = dict()
-
     print('-- setup over')
     print('-- using {:s} for protomolecular electron density'.format(protomolecule))
     proto_amd = AMDParameters.from_file(protomolecule)
@@ -77,8 +72,8 @@ def test(
 
     print('-- declaring sampler')
     cs = CoordinatesSampler(
-        sampler=sampling,
-        sampler_args=sampling_args,
+        sampler='becke',
+        sampler_args=dict(grid=grid, resolution=resolution),
         dtype=float_dtype, device=device
     )
 
@@ -99,46 +94,40 @@ def test(
     mddl = data.DataLoader(md, batch_size=batch_size, shuffle=True)
     print('-- using batches of size : {:d}'.format(batch_size))
 
-    print('-- MSE : mean squared error')
-    print('-- relMSE : mean squared error divided by density')
-    print('-- MLSE : mean logarithm squared error')
-    print('-- neg : negative exponential score')
-    print('@ {:24s} {:12s} {:12s} {:12s} {:12s} {:12s}'.format(
-        'model_name', 'replica', 'MSE', 'rel_MSE', 'MLSE', 'time')
+    print('-- DKL : mean squared error')
+    print('-- MSE : mean squared error divided by density')
+    print('@ {:24s} {:12s} {:12s} {:12s}'.format(
+        'model_name', 'MSE', 'DKL', 'time')
     )
     testing_start = time.time()
     for n in nets:
         net_name = path / n
         mn = torch.load(net_name)
-        for i in range(replicas):
-            mse = 0.0
-            rel_mse = 0.0
-            mlse = 0.0
 
-            epoch_start = time.time()
-            for index, labels, topo, coords, charge in mddl:
+        epoch_start = time.time()
+        for index, labels, topo, coords, charge in mddl:
 
-                sample = cs(coords)
-                density = qmbatch.forward(index, sample)
-                protodensity = gamd.protodensity(coordinates=sample, labels=labels, centers=coords)
-                protointegrals = gamd.protointegrate(labels)
-                dcharge = charge - protointegrals
-                preddensity = mn.forward(
-                    coordinates=sample, labels=labels, mol_coordinates=coords, charge=dcharge
-                )
+            z, w = cs(coords)
+            q = qmbatch.forward(index, z)
+            pt = gamd.protodensity(coordinates=z, labels=labels, centers=coords)
+            pi = gamd.protointegrate(labels)
+            dcharge = charge - pi
+            p = mn.forward(
+                coordinates=z, labels=labels, mol_coordinates=coords, charge=dcharge
+            )
+            p = p + pt
 
-                molpreddensity = protodensity + preddensity
-                del protodensity
+            Q = (q * w).sum()
+            P = (p * w).sum()
 
-                mse += (molpreddensity - density).pow(2.0).sum()
-                rel_mse += ((molpreddensity - density).pow(2.0) / density).sum()
-                mlse += (molpreddensity.log() - density.log()).sum()
+            mse = mean_squared_error(p, q, w)
+            dkl = kl_divergence(p / P, q/Q, w)
 
             epoch_end = time.time()
 
             print(
-                '@ {:24s} {:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e}'.format(
-                    n, i, mse, rel_mse, mlse, epoch_end - epoch_start
+                '@ {:24s} {:12.4e} {:12.4e} {:12.4e}'.format(
+                    n, mse, dkl, epoch_end - epoch_start
                 )
             )
 

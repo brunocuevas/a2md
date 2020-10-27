@@ -3,6 +3,8 @@ import torchani
 import torch.nn as nn
 from a2mdio.qm import WaveFunctionHDF5
 from typing import List
+from a2mdio.units import bohr
+from a2mdnet.data import Coordinates
 import time
 
 class TorchElementA2MDNN(nn.Module):
@@ -824,12 +826,27 @@ class QMDensityFun:
 
 class QMDensityBatch:
     def __init__(self, filename: str, index: List[str], device: torch.device, dtype: torch.dtype):
+        """
+
+        :param filename:
+        :param index:
+        :param device:
+        :param dtype:
+        """
         self.filename = filename
         self.map_index2group = index
         self.dtype = dtype
         self.device = device
+        self.units = bohr
 
-    def forward(self, index: torch.Tensor, coordinates: torch.Tensor):
+    def forward(self, index: torch.Tensor, coordinates: Coordinates) -> torch.Tensor:
+        """
+
+        :param index:
+        :param coordinates:
+        :return:
+        """
+        coordinates = coordinates.get_cartessian(self.units)
         index = index.split(1, dim=0)
         coordinates = coordinates.split(1, dim=0)
         out = []

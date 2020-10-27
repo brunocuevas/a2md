@@ -1,11 +1,9 @@
-from a2mdnet.density_models import GenAMD
 from a2mdnet.data import MonomerDataset
 from a2mdnet.modules import QMDensityBatch
 from a2mdnet.utils import CoordinatesSampler
 from a2mdio.params import AMDParameters
 from a2mdnet.models.monomernet import Monomernet
 from torch.optim import Adam
-from torch.utils import data
 from pathlib import Path
 from a2mdnet import LIBRARY_PATH
 import torch
@@ -29,11 +27,10 @@ import sys
 @click.option('--save_each', default=10, help='epoch intervals for saving nn model')
 @click.argument('name')
 @click.argument('dataset')
-@click.argument('protomolecule')
-@click.argument('molecule')
+@click.argument('density_primitives')
 @click.argument('architecture')
 def train(
-        name: str, dataset: str, protomolecule: str, molecule: str, architecture: str,
+        name: str, dataset: str, density_primitives: str, architecture: str,
         output_path: str, learning_rate: float, device: str,
         epochs: int, sampling: str, sampling_args: str, batch_size: int, aevs: str,
         seed: int, save_each: int
@@ -81,11 +78,8 @@ def train(
         sampling_args = dict()
 
     print('-- setup over')
-    print('-- using {:s} for protomolecular electron density'.format(protomolecule))
-    print('-- using {:s} for molecular electron density'.format(molecule))
-    proto_amd = AMDParameters.from_file(protomolecule)
-    mol_amd = AMDParameters.from_file(molecule)
-    gamd = GenAMD(proto_amd, device=device, dtype=torch.float)
+    print('-- using {:s} primitives for electron density'.format(density_primitives))
+    mol_amd = AMDParameters.from_file(density_primitives)
 
     print('-- declaring sampler')
     cs = CoordinatesSampler(
@@ -105,7 +99,8 @@ def train(
         device=device, dtype=float_dtype, ids=index,
         molecular_data_path=mol_path,
         max_atoms=dataset_info['natoms'],
-        max_bonds=dataset_info['nbonds']
+        max_bonds=dataset_info['nbonds'],
+        batch_size=batch_size, shuffle=False
     )
     ds_load_end = time.time()
     print('--     molecules loaded. time elapsed : {:12.4f}'.format(ds_load_end - ds_load_start))
@@ -113,7 +108,7 @@ def train(
     qmbatch = QMDensityBatch(filename=wfn_path, index=index, device=device, dtype=float_dtype)
     ds_load_end = time.time()
     print('--     wavefunctions loaded. time elapsed : {:12.4f}'.format(ds_load_end - ds_load_start))
-    mddl = data.DataLoader(md, batch_size=batch_size, shuffle=True)
+
     print('-- using batches of size : {:d}'.format(batch_size))
 
     print('-- load over')
@@ -126,18 +121,14 @@ def train(
     training_start = time.time()
     for i in range(epochs):
         epoch_start = time.time()
-        for index, labels, topo, coords, charge in mddl:
+        for index_, labels, topo, coords, charge in md.epoch():
             itstart = time.time()
-            sample = cs(coords)
-            density = qmbatch.forward(index, sample)
-            protodensity = gamd.protodensity(coordinates=sample, labels=labels, centers=coords)
-            protointegrals = gamd.protointegrate(labels)
-            moldensity = density - protodensity
-            dcharge = charge - protointegrals
-            preddensity = mn.forward(
-                coordinates=sample, labels=labels, mol_coordinates=coords, charge=dcharge
+            z = cs(coords)
+            q = qmbatch.forward(index_, z)
+            p = mn.forward(
+                coordinates=z, labels=labels, mol_coordinates=coords, charge=charge
             )
-            loss = ((moldensity - preddensity).pow(2.0)).sum()
+            loss = ((p - q).pow(2.0) / q ).sum()
             loss.backward()
             opt.step()
             mn.zero_grad()

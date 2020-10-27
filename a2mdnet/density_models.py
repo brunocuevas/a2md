@@ -10,6 +10,8 @@ from a2mdio.params import AMDParameters
 from a2mdnet import ALLOWED_SPECIES, ELEMENT2SYMBOL, SYMBOL2NN
 from a2mdio.molecules import Mol2
 from a2mdio import MAP_SYMBOL2AN
+from a2mdnet.data import Coordinates
+from a2mdio.units import Unit
 import math
 
 
@@ -387,6 +389,7 @@ class GenAMD:
         self.pars = parameters
         self.device = device
         self.dtype = dtype
+        self.units = parameters.get_units()
         self.a, self.b, self.p = self.build()
         self.maxfun = self.pars.get_maxfunctions()
         self.nelements = self.pars.get_nelements()
@@ -416,10 +419,10 @@ class GenAMD:
 
     def forward(
             self,
-            coordinates: torch.Tensor,
+            coordinates: Coordinates,
             coefficients: torch.Tensor,
             labels: torch.Tensor,
-            centers: torch.Tensor
+            centers: Coordinates
     ):
         """
         evaluates density at coordinates
@@ -430,6 +433,9 @@ class GenAMD:
         :param centers:
         :return:
         """
+
+        coordinates = coordinates.get_cartessian(self.units)
+        centers = centers.get_cartessian(self.units)
         dv = distance_vectors(
             sample_coords=coordinates, mol_coords=centers,
             labels=labels, device=self.device, dtype=self.dtype
@@ -466,9 +472,9 @@ class GenAMD:
         split_a = self.a.split(1, dim=1)
         factorial = lambda n: (n + 1).to(self.dtype).lgamma().exp()
         for i, (p, b, a) in enumerate(zip(split_p, split_b, split_a)):
-            p_s = expand_parameter(labels, p).to(self.device)
-            b_s = expand_parameter(labels, b).to(self.device)
-            a_s = expand_parameter(labels, a).to(self.device)
+            p_s = expand_parameter(labels, p).to(self.device, )
+            b_s = expand_parameter(labels, b).to(self.device, )
+            a_s = expand_parameter(labels, a).to(self.device, )
             f = factorial(2 + p_s)
             integrals[:, :, i] = a_s * f * b_s.clamp(0.1, None).pow(- 3 - p_s) * 4 * math.pi
 
@@ -476,9 +482,9 @@ class GenAMD:
 
     def protodensity(
             self,
-            coordinates: torch.Tensor,
+            coordinates: Coordinates,
             labels: torch.Tensor,
-            centers: torch.Tensor
+            centers: Coordinates
     ):
         """
         evaluates protomolecule density at coordinates
@@ -488,6 +494,9 @@ class GenAMD:
         :param centers:
         :return:
         """
+
+        coordinates = coordinates.get_cartessian(self.units)
+        centers = centers.get_cartessian(self.units)
         dv = distance_vectors(
             sample_coords=coordinates, mol_coords=centers,
             labels=labels, device=self.device, dtype=self.dtype
@@ -509,3 +518,11 @@ class GenAMD:
     def protointegrate(self, labels):
         integrals = self.integrate(labels)
         return integrals.sum(2)
+
+    def to(self, device):
+
+        return GenAMD(
+            parameters=self.pars,
+            device=device,
+            dtype=self.dtype
+        )
