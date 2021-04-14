@@ -2,20 +2,44 @@ import numpy as np
 from a2md.baseclass import A2MDBaseClass
 from a2md import mathfunctions
 import math
+symetry_index = np.array(
+    [
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+        [2, 0, 0],
+        [0, 2, 0],
+        [0, 0, 2],
+        [1, 1, 0],
+        [1, 0, 1],
+        [0, 1, 1],
+    ]
+)
+
+atom_names = list(
+    ['H', 'He', 'Li', 'Be', 'B' ,'C','N','O','F','Ne', 'Na','Mg','Al', 'Si','P','S', 'Cl','Ar']
+)
+
+
+def element2an(an):
+    return atom_names.index(an) + 1
+
+def an2element(elem):
+    return atom_names[elem-1]
 
 
 def set_nearest_atom(points, coordinates):
     n_points = points.shape[0]
     n_coords = coordinates.shape[0]
-    distance_matrix = np.zeros((n_points, n_coords))
+    D = np.zeros((n_points, n_coords))
     for i in range(n_coords):
-        distance_matrix[:, i] = np.sqrt(
-            ((points[:, 0] - coordinates[i, 0]) ** 2) +
-            ((points[:, 1] - coordinates[i, 1]) ** 2) +
-            ((points[:, 2] - coordinates[i, 2]) ** 2)
+        D[:,i] = np.sqrt(
+            ((points[:,0] - coordinates[i,0])**2) +
+            ((points[:,1] - coordinates[i,1])**2) +
+            ((points[:,2] - coordinates[i,2])**2)
         )
-    return distance_matrix.min(axis=1)
-
+    return D.min(axis=1)
 
 def convert_connectivity_tree_to_pairs(connectivity_tree):
     pairs = []
@@ -25,29 +49,25 @@ def convert_connectivity_tree_to_pairs(connectivity_tree):
                 pairs.append(sorted([i, item2]))
     return pairs
 
-
 def create_all2all_topology(n_items):
     topo_array = []
     for i in range(n_items):
         topo_array.append([])
     for i in range(n_items):
         for j in range(n_items):
-            if i != j:
+            if i != j :
                 topo_array[i].append(j)
     return topo_array
 
-
 def topology_from_bonds(bonds, natoms, nbonds):
     topology = []
-    for i in range(natoms):
-        topology.append([])
+    for i in range(natoms): topology.append([])
     for i in range(nbonds):
         begin = int(bonds[i, 0])
         end = int(bonds[i, 1])
         topology[begin - 1].append(end - 1)
         topology[end - 1].append(begin - 1)
     return topology
-
 
 def integrate_from_dict(fun_dict):
     """
@@ -69,17 +89,14 @@ def integrate_from_dict(fun_dict):
     try:
         p = fun_dict['params']['P']
     except KeyError:
-        if fun_dict['bond'] is None:
-            p = 0
-        else:
-            p = 1
+        if fun_dict['bond'] is None: p = 0
+        else: p = 1
     if fun_dict['bond'] is None:
         return 4 * np.pi * mathfunctions.generalized_exponential_integral(a, b, p)
     else:
         alpha = fun_dict['params']['alpha']
         return 2 * np.pi * mathfunctions.generalized_exponential_integral(
             a, b, p) * mathfunctions.angular_gaussian_integral(alpha)
-
 
 def integrate_from_old_dict(fun):
     """
@@ -104,17 +121,14 @@ class ClusterTool(A2MDBaseClass):
     def __init__(self, name, verbose=False):
         A2MDBaseClass.__init__(self, name="cluter tool / {:s}".format(name), verbose=verbose)
         self.cluster_method = None
-
     def cluster(self, labels, topology, coordinates):
         return self.cluster_method(labels, topology, coordinates)
-
 
 class RBFSymmetryCluster(ClusterTool):
     centers = [1.0, 2.7, 4.4, 6.1]
     vars = [1.0, 1.0, 1.0, 1.0]
     heights = [1.0, 0.5, 0.25, 0.1]
     n = 4
-
     def __init__(self, verbose=False):
 
         ClusterTool.__init__(self, name="Radial Gaussian Basis Function cluster", verbose=verbose)
@@ -129,14 +143,16 @@ class RBFSymmetryCluster(ClusterTool):
         """
         d = np.zeros((coordinates1.shape[0], coordinates2.shape[0]), dtype="float64")
         for i in range(coordinates1.shape[0]):
+
             r = coordinates2 - coordinates1[i, :]
             d[i, :] = np.linalg.norm(r, axis=1)
 
         z = np.zeros((coordinates1.shape[0], self.n), dtype="float64")
         for i in range(self.n):
-            z[:, i] = (np.exp(-((d - self.centers[i]) ** 2) / self.vars[i]) * self.heights[i]).sum(1)
+            z[:, i] = (np.exp(-((d - self.centers[i])**2)/self.vars[i]) * self.heights[i]).sum(1)
 
         return z
+
 
     def rbf_clustering(self, labels, topology, coordinates):
         """
@@ -159,6 +175,7 @@ class RBFSymmetryCluster(ClusterTool):
 
             for j in range(natoms):
                 if labels[j] == element:
+
                     current_coordinates.append(coordinates[j, :])
                     index.append(j)
 
@@ -169,15 +186,16 @@ class RBFSymmetryCluster(ClusterTool):
             current_coordinates = np.array(current_coordinates, dtype="float64")
             rbf_values = self.rbf(current_coordinates, coordinates)
 
+
             atom_cluster = AgglomerativeClustering(
                 n_clusters=None, affinity="euclidean", linkage="ward", distance_threshold=1e-3
             ).fit(rbf_values)
 
             cluster_labels = atom_cluster.labels_
             all_clusters = np.unique(cluster_labels)
-            for lab in all_clusters:
+            for l in all_clusters:
                 sa.append([])
-                filtered_labels = cluster_labels == lab
+                filtered_labels = cluster_labels == l
                 for j, f in enumerate(filtered_labels):
                     if f:
                         sa[-1].append(index[j])
@@ -200,11 +218,11 @@ class RBFSymmetryCluster(ClusterTool):
         sb = [[int(i[0]), int(i[1])] for i in sb]
         return sa, sb
 
-
 def maptoconstraints(cp, x, q):
+
     a = np.identity(cp.size + 1)
     b = np.zeros(cp.size + 1)
-    b[:-1] = 2 * cp
+    b[:-1] = 2*cp
     b[-1] = q
     a[-1, -1] = 0.0
     a = a * 2
@@ -212,7 +230,6 @@ def maptoconstraints(cp, x, q):
     a[:-1, -1] = x
     c = np.linalg.solve(a, b)
     return c[:-1]
-
 
 def project(g, x):
     t1 = g.dot(x)

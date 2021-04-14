@@ -1,9 +1,6 @@
 import numpy as np
 import re
 from a2mdio.volumes import Volume
-import h5py
-from a2mdio import WFN_SYMMETRY_INDEX
-
 
 class A2MDlibQM:
     def __init__(self, name, verbose):
@@ -18,7 +15,30 @@ class A2MDlibQM:
             print("[{:s}] {:s}".format(self.__name, mssg))
 
 
-symmetry_index = np.array(WFN_SYMMETRY_INDEX)
+symetry_index = np.array(
+    [
+        [0, 0, 0],  # s
+        [1, 0, 0],  # x
+        [0, 1, 0],  # y
+        [0, 0, 1],  # z
+        [2, 0, 0],  # xx
+        [0, 2, 0],  # yy
+        [0, 0, 2],  # zz
+        [1, 1, 0],  # xy
+        [1, 0, 1],  # xz
+        [0, 1, 1],  # yz
+        [3, 0, 0],  # xxx
+        [0, 3, 0],  # yyy
+        [0, 0, 3],  # zzz
+        [2, 1, 0],  # xxy
+        [2, 0, 1],  # xxz
+        [0, 2, 1],  # yyz
+        [1, 2, 0],  # xyy
+        [1, 0, 2],  # xzz
+        [0, 1, 2],  # yzz
+        [1, 1, 1]   # xyz
+    ]
+)
 
 atom_names = list(
     ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar']
@@ -40,13 +60,11 @@ def parse_fortran_scientific(fortran_number):
 
 
 class WaveFunction(A2MDlibQM):
-
-    def __init__(
-        self, coeff, dm, occ, exponents, syms, centers, coords, types, charges, primitives,
-        molecular_orbitals, nuclei, verbose=False, program='g09', prefetch_dm=False
-    ):
+    def __init__(self, file=None, verbose=True, batch_size=1000, prefetch_dm=True):
         A2MDlibQM.__init__(self, verbose=verbose, name='wavefunction handler')
-        self.program = program
+
+        self.__file = file
+        coeff, occ, exponents, syms, centers, coords, types, charges, primitives, molecular_orbitals, nuclei = self.read()
         self.coeff = coeff
         self.occ = occ
         self.exp = exponents
@@ -58,14 +76,10 @@ class WaveFunction(A2MDlibQM):
         self.nprims = primitives
         self.norbs = molecular_orbitals
         self.ncenters = nuclei
-        self.density_matrix = dm
-        if self.program not in ['orca', 'g09']:
-            raise IOError("unknown program {:s}".format(self.program))
+        self.density_matrix = None
+        self.batchsize = batch_size
         if prefetch_dm:
-            self.density_matrix = self.calculate_density_matrix()
-
-    def __call__(self, x):
-        return self.eval(x)
+            self.density_matrix= self.calculate_density_matrix()
 
     @staticmethod
     def __gaussian(r, s, exp):
@@ -90,7 +104,7 @@ class WaveFunction(A2MDlibQM):
         smx = r[:, 0] ** s[0]
         smx *= r[:, 1] ** s[1]
         smx *= r[:, 2] ** s[2]
-        return smx * np.exp(-r2 * exp)
+        return smx*np.exp(-r2*exp)
 
     @staticmethod
     def __parse_centers(wfn, primitives):
@@ -184,7 +198,7 @@ class WaveFunction(A2MDlibQM):
         return head, wfn_instance[1:]
 
     @staticmethod
-    def __parse_orbitals(wfn, primitives, orbitals, program):
+    def __parse_orbitals(wfn, primitives, orbitals):
         """
 
         In charge of parsing the coefficients of the wave function for each molecular orbital
@@ -196,18 +210,13 @@ class WaveFunction(A2MDlibQM):
         """
         orbital_text = ''.join(wfn)
         orbital_text = re.split('END DATA', orbital_text)[0]
-        if program == 'g09':
-            orbital_text = re.split(r'MO\s*\d{1,3}\s*MO\s\d\.\d\s*OCC\s*', orbital_text)
-            orbital_text = orbital_text[1:]
-        elif program == 'orca':
-            orbital_text = re.split('MO', orbital_text)
-            orbital_text = orbital_text[1:]
+        orbital_text = re.split('MO\s*\d{1,3}\s*MO\s\d\.\d\s*OCC\sNO\s=\s*', orbital_text)
+        orbital_text = orbital_text[1:]
         coeff = np.zeros((orbitals, primitives))
         occ = np.zeros(orbitals)
         i = 0
         j = 0
         for orb in orbital_text:
-            orb = re.split('NO =', orb)[1]
             orb_lines = orb.split('\n')
             header = orb_lines[0].split()
             occ[i] = float(header[0])
@@ -252,7 +261,7 @@ class WaveFunction(A2MDlibQM):
 
         Performs a calculation of electron density for the given coordinates by applying:
 
-        rho = sum_i sum_j D_ij Xi_i Xi_j = Xi.T D Xi
+        rho = \sum_i \sum_j D_ij Xi_i Xi_j
 
         where D is the value of the density matrix (obtained by multiplying the coefficents i and j
         and the occupation numbers), and Xi_i and Xi_j are gaussian functions
@@ -265,20 +274,39 @@ class WaveFunction(A2MDlibQM):
         if self.density_matrix is None:
             raise IOError("density matrix has not been set")
 
-        # rho = np.zeros(coordinates.shape[0])
-        n = coordinates.shape[0]
-        x = np.zeros((self.nprims, n))
-        for p in range(self.nprims):
-            cntr = self.coords[self.cent[p], :]
-            d = coordinates - cntr
-            x[p, :] = self.__gaussian(
-                d,
-                symmetry_index[self.sym[p], :],
-                self.exp[p]
-            )
+        rho = np.zeros(coordinates.shape[0])
+        batch_size = self.batchsize
+        n_batches = int(coordinates.shape[0]/batch_size)
+        b = 0
+        for b in range(n_batches):
+            x = np.zeros((self.nprims, batch_size))
+            for p in range(self.nprims):
+                cntr = self.coords[self.cent[p], :]
+                d = coordinates[b*batch_size:(b+1)*batch_size, :] - cntr
+                x[p, :] = self.__gaussian(
+                    d,
+                    symetry_index[self.sym[p], :],
+                    self.exp[p]
+                )
+            for p in range(self.nprims):
+                for q in range(self.nprims):
+                    rho[b*batch_size:(b+1)*batch_size] += self.density_matrix[p, q] * x[p, :] * x[q, :]
 
-        rho = x * (self.density_matrix @ x)
-        return rho.sum(0)
+        if coordinates.shape[0] % batch_size != 0:
+            x = np.zeros((self.nprims, coordinates.shape[0] % batch_size))
+            for p in range(self.nprims):
+                cntr = self.coords[self.cent[p], :]
+                d = coordinates[b*batch_size:, :] - cntr
+                x[p, :] = self.__gaussian(
+                    d,
+                    symetry_index[self.sym[p], :],
+                    self.exp[p]
+                )
+            for p in range(self.nprims):
+                for q in range(self.nprims):
+                    rho[b*batch_size:] += self.density_matrix[p, q] * x[p, :] * x[q, :]
+        return rho
+
 
     def calculate_density_matrix(self):
         """
@@ -289,8 +317,6 @@ class WaveFunction(A2MDlibQM):
         """
         dm = np.zeros((self.nprims, self.nprims))
         for i in range(self.norbs):
-            if np.isclose(self.occ[i], 0.0):
-                continue
             for p in range(self.nprims):
                 dm[p, :] += self.occ[i] * self.coeff[i, p] * self.coeff[i, :]
         return dm
@@ -325,6 +351,7 @@ class WaveFunction(A2MDlibQM):
 
         :return:
         """
+        self.log("default units are AU")
         return self.coords.copy()
 
     def get_number_molecular_orbitals(self):
@@ -345,85 +372,81 @@ class WaveFunction(A2MDlibQM):
         """
         return self.nprims
 
-    @staticmethod
-    def from_file(filename: str, program: str, prefetch_dm=True):
+    def read(self):
         """
 
         reads the wave function
 
         """
-        with open(filename) as fh:
-            wfn = fh.readlines()
-        wfn = wfn[1:]
-        head, wfn = WaveFunction.__parse_head(wfn)
-        coords, types, charges, wfn = WaveFunction.__parse_coordinates(wfn, head['nuclei'])
-        centers, wfn = WaveFunction.__parse_centers(wfn, head['primitives'])
-        syms, wfn = WaveFunction.__parse_symmetry(wfn, head['primitives'])
-        exponents, wfn = WaveFunction.__parse_exponents(wfn, head['primitives'])
-        coeff, occ = WaveFunction.__parse_orbitals(
-            wfn, head['primitives'], head['molecular_orbitals'], program=program
-        )
-
-        return WaveFunction(
-            coeff, None, occ, exponents, syms, centers, coords, types, charges, head['primitives'],
-            head['molecular_orbitals'], head['nuclei'], program, prefetch_dm=prefetch_dm
-        )
-
-    @staticmethod
-    def from_hdf5(cwfn: h5py.Group):
-        prefetch = True
-        if cwfn.attrs['contains_coefficients']:
-            coeff = cwfn['coefficients'][:, :]
+        if self.__file is None:
+            raise IOError("file is not defined")
         else:
-            coeff = None
-        if cwfn.attrs['contains_density_matrix']:
-            dm = cwfn['density_matrix'][:, :]
-            prefetch = False
-        else:
-            dm = None
-        occ = cwfn['occupation'][:]
-        exponents = cwfn['exponents'][:]
-        syms = cwfn['symmetry'][:]
-        centers = cwfn['centers'][:]
-        coords = cwfn['coordinates'][:, :]
-        types = None
-        charges = None
-        primitives = cwfn.attrs['number_primitives']
-        molecular_orbitals = cwfn.attrs['number_orbitals']
-        nuclei = cwfn.attrs['number_centers']
+            with open(self.__file) as fh:
+                wfn = fh.readlines()
+            wfn = wfn[1:]
+            head, wfn = self.__parse_head(wfn)
+            coords, types, charges, wfn = self.__parse_coordinates(wfn, head['nuclei'])
+            centers, wfn = self.__parse_centers(wfn, head['primitives'])
+            syms, wfn = self.__parse_symmetry(wfn, head['primitives'])
+            exponents, wfn = self.__parse_exponents(wfn, head['primitives'])
+            coeff, occ = self.__parse_orbitals(wfn, head['primitives'], head['molecular_orbitals'])
 
-        return WaveFunction(
-            coeff, dm, occ, exponents, syms, centers, coords, types, charges, primitives,
-            molecular_orbitals, nuclei, None, prefetch_dm=prefetch
-        )
+            return [
+                coeff, occ, exponents, syms, centers, coords, types, charges, head['primitives'],
+                head['molecular_orbitals'], head['nuclei']
+            ]
 
-    def dump(self, save_dm=True, save_coeff=False):
-        """
-        Prepares the WFN representation for saving into an HDF5 file
-        :param save_dm
-        :param save_coeff
-        :return:
-        """
-        wfn_dict = {
-            'number_centers': self.ncenters,
-            'number_primitives': self.nprims,
-            'number_orbitals': self.norbs,
-            'coordinates': self.coords,
-            'symmetry': self.sym,
-            'exponents': self.exp,
-            'centers': self.cent,
-            'occupation': self.occ,
-            'density_matrix': None,
-            'coefficients': None,
-            'contains_dm': save_dm,
-            'contains_coefficients': save_coeff
-        }
 
-        if save_dm:
-            wfn_dict['density_matrix'] = self.density_matrix
-        if save_coeff:
-            wfn_dict['coefficients'] = self.density_matrix
-        return wfn_dict
+class WaveFunctionGPU(WaveFunction):
+    def __init__(self, file, dtype, device='cuda:0'):
+        import torch
+        self.torch = torch
+        self.device = torch.device(device)
+        self.dtype = dtype
+        WaveFunction.__init__(self, file=file, verbose=True, batch_size=100000, prefetch_dm=True)
+        self.density_matrix = self.calculate_density_matrix()
+        self.coords = torch.tensor(self.coords, dtype=dtype, device=self.device)
+
+
+    def convert_symmetry_to_tensor(self, sym, dims):
+
+        sym_tensor = self.torch.tensor(symetry_index[sym], dtype=self.dtype, device=self.device)
+        sym_tensor = sym_tensor.repeat(dims).reshape(dims, 3)
+        return sym_tensor
+
+    def basis_function(self, x, i):
+
+        center = self.cent[i]
+        coords = self.coords[center, :]
+        sym_vector = symetry_index[self.sym[i], :]
+        exp = self.exp[i]
+        rv = (x - coords)
+        r = rv.pow(2.0).sum(1)
+        g = self.torch.exp(-exp * r)
+        l = rv[:,0].pow(sym_vector[0]) * rv[:,1].pow(sym_vector[1]) * rv[:,2].pow(sym_vector[2])
+        return g * l
+
+    def distance_vector(self, x, i):
+        dims = x.size(0)
+        coords = self.coords[i, :].repeat(dims).reshape(dims, 3)
+        rv = (x - coords)
+        r = rv.pow(2.0).sum(1)
+        return rv, r
+
+
+    def eval(self, x):
+        p = self.torch.zeros(x.size(0), device=self.device, dtype=self.dtype)
+        buffer = self.torch.zeros(self.nprims, x.size(0), dtype=self.dtype, device=self.device)
+
+        for i in range(self.nprims):
+            buffer[i, :] = self.basis_function(x, i)
+
+        for i in range(self.nprims):
+
+            for j in range(self.nprims):
+
+                p += self.density_matrix[i, j] * buffer[i, :] * buffer[j, :]
+        return p
 
 
 class ElectronDensity(Volume):
@@ -474,17 +497,17 @@ class GaussianLog(A2MDlibQM):
         if method == 'MP2':
             tokkens.append(mp2_energy)
             tokkens_labels.append('energy')
-        elif method == 'HF':
+        elif method == 'HF' :
             tokkens.append(hf_energy)
             tokkens_labels.append('energy')
-        elif method[:3] == 'dft':
-            tokkens.append(lambda x: dft_energy(x, functional=method[4:]))
+        elif method[:3] == 'dft' :
+            tokkens.append(lambda x : dft_energy(x, functional=method[4:]))
             tokkens_labels.append('energy')
 
         if charges == 'NPA':
             tokkens.append(npa_charges)
             tokkens_labels.append('charges')
-        elif charges == 'MK':
+        elif charges == 'MK' :
             tokkens.append(mk_charges)
             tokkens_labels.append('charges')
 
@@ -502,11 +525,7 @@ class GaussianLog(A2MDlibQM):
         """
         output_dict = dict()
         for label, tk in zip(self.tokken_labels, self.tokkens):
-            try:
-                output_dict[label] = self.seek(tk)
-            except RuntimeError:
-                self.log("missing tokken {:s}".format(label))
-                output_dict[label] = None
+            output_dict[label] = self.seek(tk)
         return output_dict
 
     def seek(self, fun):
@@ -517,6 +536,7 @@ class GaussianLog(A2MDlibQM):
         """
         with open(self.fname) as f:
             return fun(f.readlines())
+
 
 
 class CubeFile(A2MDlibQM):
@@ -566,6 +586,7 @@ class CubeFile(A2MDlibQM):
                 cnt += 1
 
                 if cnt == 3:
+
                     n_atoms, x_ori, y_ori, z_ori = line.split()
                     n_atoms = int(n_atoms)
                     x_ori = float(x_ori)
@@ -611,7 +632,7 @@ class CubeFile(A2MDlibQM):
         self.origin = np.array((x_ori, y_ori, z_ori), dtype='float64')
         self.basis = unit_cell
 
-    def get_plane(self, value, axis='z'):
+    def get_plane(self, value, axis = 'z'):
         """
 
         gives back the nearest layer of the tensor to the given value. Useful
@@ -637,57 +658,6 @@ class CubeFile(A2MDlibQM):
             return self.cube_tensor[:, :, tensor_idx]
 
 
-class WaveFunctionHDF5:
-    def __init__(self, filename, wfn_init=WaveFunction.from_hdf5, mode='r'):
-        self.data = h5py.File(filename, mode)
-        self.wfn_init = wfn_init
-
-    def add(self, key: str, wfn: WaveFunction, save_dm=True, save_coeff=False):
-        """
-
-        :param key:
-        :param wfn:
-        :param save_dm:
-        :param save_coeff:
-        :return:
-        """
-
-        wfn_dict = wfn.dump(save_dm=save_dm, save_coeff=save_coeff)
-        cwfn = self.data.create_group(key)
-        cwfn.create_dataset('coordinates', data=wfn_dict['coordinates'], compression='gzip')
-        cwfn.create_dataset('symmetry', data=wfn_dict['symmetry'], compression='gzip')
-        cwfn.create_dataset('centers', data=wfn_dict['centers'], compression='gzip')
-        cwfn.create_dataset('exponents', data=wfn_dict['exponents'], compression='gzip')
-        cwfn.create_dataset('occupation', data=wfn_dict['occupation'], compression='gzip')
-
-        cwfn.attrs.create('number_centers', data=wfn_dict['number_centers'])
-        cwfn.attrs.create('number_primitives', data=wfn_dict['number_primitives'])
-        cwfn.attrs.create('number_orbitals', data=wfn_dict['number_orbitals'])
-        if wfn_dict['contains_dm']:
-            cwfn.attrs.create('contains_density_matrix', data=True)
-            cwfn.create_dataset('density_matrix', data=wfn_dict['density_matrix'], compression='gzip')
-        else:
-            cwfn.attrs.create('contains_density_matrix', data=False)
-
-        if wfn_dict['contains_coefficients']:
-            cwfn.attrs.create('contains_coefficients', data=True)
-            cwfn.create_dataset('coefficients', data=wfn_dict['coefficients'], compression='gzip')
-        else:
-            cwfn.attrs['contains_coefficients'] = False
-
-    def iterall(self):
-        for key, item in self.data.items():
-            yield key, self.wfn_init(cwfn=item)
-
-    def __getitem__(self, key):
-        try:
-            cwfn = self.data[key]
-        except KeyError:
-            raise IOError("wfn {:s} not found within hdf5 file".format(key))
-        return key, self.wfn_init(cwfn=cwfn)
-
-    def close(self):
-        self.data.close()
 
 
 if __name__ == '__main__':

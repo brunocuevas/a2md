@@ -1,0 +1,68 @@
+[
+    {
+        "bond": null,
+        "center": 0,
+        "coefficient": 0.7451460378800829,
+        "params": {
+            "A1": 316.284,
+            "A2": -9.789,
+            "B1": 15.835,
+            "B2": 6.439
+        },
+        "support_type": "IR"
+    },
+    {
+        "bond": null,
+        "center": 0,
+        "coefficient": 1.099233022446871,
+        "params": {
+            "A3": 5.479,
+            "B3": 2.71
+        },
+        "support_type": "OR"
+    },
+    {
+        "bond": null,
+        "center": 1,
+        "coefficient": 0.4434274137769314,
+        "params": {
+            "A1": 0.04709,
+            "A2": -0.218,
+            "B1": 4.477,
+            "B2": 4.844
+        },
+        "support_type": "IR"
+    },
+    {
+        "bond": null,
+        "center": 1,
+        "coefficient": 0.782441674193138,
+        "params": {
+            "A3": 0.64,
+            "B3": 2.495
+        },
+        "support_type": "OR"
+    },
+    {
+        "bond": null,
+        "center": 2,
+        "coefficient": 0.4434274137769314,
+        "params": {
+            "A1": 0.04709,
+            "A2": -0.218,
+            "B1": 4.477,
+            "B2": 4.844
+        },
+        "support_type": "IR"
+    },
+    {
+        "bond": null,
+        "center": 2,
+        "coefficient": 0.782441674193138,
+        "params": {
+            "A3": 0.64,
+            "B3": 2.495
+        },
+        "support_type": "OR"
+    }
+]

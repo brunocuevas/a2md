@@ -1,8 +1,7 @@
 import torch
 import torchani
 import torch.nn as nn
-from a2mdio.qm import WaveFunctionHDF5
-from typing import List
+from a2mdnet import ELEMENT2NN
 
 
 class TorchElementA2MDNN(nn.Module):
@@ -154,6 +153,7 @@ class TorchElementSpecificA2MDNN(nn.Module):
             mask_output = mask_input.unsqueeze(1).expand(mask_input.size(0), self.output_size)
             y.masked_scatter_(mask_output, self.subnets[n.item()](x))
 
+
         y = y.reshape(elements.size()[0], elements.size()[1], self.output_size)
         return elements, y
 
@@ -224,8 +224,7 @@ class TorchPairSpecificA2MDNN(nn.Module):
         con_mask = connectivity_f[:, 0] != -1
         con_mask_features = con_mask.unsqueeze(1).expand(connectivity_f.size(0), 2*features_f.size(1))
         con_mask_elements = con_mask.unsqueeze(1).expand(connectivity_f.size(0), 2)
-        connectivity_f = connectivity_f + n_batch_arange.reshape(-1, 1).repeat(1, n_connectivity).reshape(-1, 1).repeat(
-            1, 2)
+        connectivity_f = connectivity_f + n_batch_arange.reshape(-1, 1).repeat(1, n_connectivity).reshape(-1, 1).repeat(1, 2)
 
         # Creating combinations of the features and the elements
 
@@ -275,7 +274,6 @@ class TorchPairSpecificA2MDNN(nn.Module):
 
         return elements, connectivity, y
 
-
 class TorchPairDistances(nn.Module):
     def __init__(self, nodes, elements, device):
         """
@@ -305,7 +303,7 @@ class TorchPairDistances(nn.Module):
         :return:
         """
 
-        elements, connectivity, sym_features, pair_features = u
+        elements, connectivity, sym_features, pair_features  = u
 
         assert isinstance(elements, torch.Tensor)
         assert isinstance(connectivity, torch.Tensor)
@@ -383,7 +381,6 @@ class TorchPairDistances(nn.Module):
 
         return elements, connectivity, y
 
-
 class TorchaniFeats(nn.Module):
     def __init__(self, net=0, feats_layer=6, device=torch.device('cpu')):
         """
@@ -446,18 +443,15 @@ class TorchaniFeats(nn.Module):
         final_layer = final_layer_.view_as(final_layer)
         return labels_tensor, final_layer
 
-
 class SymFeats(nn.Module):
-    def __init__(self, parameters=None):
+    def __init__(self):
         from torchani.aev import AEVComputer
         from torchani.neurochem import Constants
         from a2mdnet import AEV_PARAMETERS
 
         super(SymFeats, self).__init__()
-        if parameters is None:
-            parameters = AEV_PARAMETERS
         self.aev = AEVComputer(
-            **Constants(filename=parameters)
+            **Constants(filename=AEV_PARAMETERS)
         )
 
     def forward(self, *x):
@@ -588,259 +582,157 @@ class QPChargeNormalization(nn.Module):
 
         return solutions_iso, solutions_aniso
 
-    def forward_iso(self, coefficients: torch.Tensor, integrals: torch.Tensor, charges: torch.Tensor):
-        """
-
-        Least squares with restraints solving.
-        This module allows to normalize the input coefficients so it reproduces the integral of the charge.
-        To do so:
-
-            1.  Merges the coefficients into a single tensor
-            2.  Defines a linear system that represents the derivative of the lagrangian:
-
-                    L(x, u) = (x-c)^T (x-c) - u (qx - Q)
-
-            3. Solves this system and reshapes the output into the input shape
-
-        :param coefficients:
-        :param integrals:
-        :param charges
-        """
-
-        coefficients_dims = coefficients.size()
-        nbatch = coefficients.size()[0]
-        natoms = coefficients.size()[1]
-        niso_functions = coefficients.size()[2]
-
-        coefficients = coefficients.reshape(nbatch, -1)
-        integrals = integrals.reshape(nbatch, -1)
-        nfunctions = coefficients.size()[1]
-
-        lqoperator = (torch.eye(nfunctions, device=self.device) * 2).repeat(nbatch, 1, 1)
-        integrals_flat = integrals.reshape(-1, nfunctions, 1)
-        lqoperator = torch.cat([lqoperator, -integrals_flat], dim=2)
-
-        integrals_flat = integrals.reshape(-1, 1, nfunctions)
-        integrals_flat = torch.cat(
-            [
-                integrals_flat, torch.zeros(nbatch, 1, 1, dtype=torch.float, device=self.device)
-            ], dim=2
-        )
-        lqoperator = torch.cat([lqoperator, integrals_flat], dim=1)
-
-        coefficients_flat = coefficients.reshape(nbatch, nfunctions, 1)
-        charge_flat = charges.sum(1).reshape(nbatch, 1, 1)
-        operator_problem = torch.cat(
-            [
-                2 * coefficients_flat,
-                charge_flat
-            ], dim=1
-        )
-
-        operator_solution, lu = torch.solve(operator_problem, lqoperator)
-        solutions, lagmult = torch.split(
-            operator_solution, [natoms * niso_functions, 1], dim=1
-        )
-
-        assert isinstance(solutions, torch.Tensor)
-        solutions = solutions.reshape(coefficients_dims)
-
-        return solutions
-
 
 # -------------------------------------------------------------------------------------------------------------------- #
 # This part here is still experimental
 # -------------------------------------------------------------------------------------------------------------------- #
 
 
-class QPSegmentChargeNormalization(nn.Module):
+class NearestNeighbourModule(nn.Module):
+    def __init__(self, alpha, optimize_alpha=True):
+        """
 
-    def __init__(self, device):
-
-        super(QPSegmentChargeNormalization, self).__init__()
-        self.device = device
-
-    def check(
-            self,
-            coefficients: torch.Tensor, integrals: torch.Tensor,
-            segment: torch.Tensor, charges: torch.Tensor
-    ):
-        nbatch = coefficients.size()[0]
-        natoms = coefficients.size()[1]
-        niso_functions = coefficients.size()[2]
-        nsegments = charges.size()[1]
-        # nsegbatch = nbatch * nsegments
-        segment_r = torch.arange(nbatch, device=self.device).unsqueeze(1).expand(nbatch, natoms) * nsegments
-        segment_r = segment_r + segment
-        segment_r = segment_r.flatten()
-        coefficients = coefficients.reshape(-1, niso_functions)
-        integrals = integrals.reshape(-1, niso_functions)
-        charges = charges.flatten()
-        pred_charges = torch.zeros_like(charges)
-        segments_uniques = segment_r.unique()
-
-        for i, sg in enumerate(segments_uniques):
-            mask = (segment_r == sg)
-            coefficients_sel = coefficients.index_select(0, mask.nonzero().squeeze())
-            integrals_sel = integrals.index_select(0, mask.nonzero().squeeze())
-            pred_charges[i] = (coefficients_sel * integrals_sel).sum()
-
-        return charges, pred_charges
-
-    def forward(self, c_iso: torch.Tensor, int_iso: torch.Tensor, segment: torch.Tensor, charges: torch.Tensor):
-
-        nbatch = c_iso.size()[0]
-        natoms = c_iso.size()[1]
-        niso_functions = c_iso.size()[2]
-        nsegments = charges.size()[1]
-        # nsegbatch = nbatch * nsegments
-        segment_r = torch.arange(nbatch, device=self.device).unsqueeze(1).expand(nbatch, natoms) * nsegments
-        segment_r = segment_r + segment
-        segment_r = segment_r.flatten()
-        coefficients = c_iso.reshape(-1, niso_functions)
-        norm_coefficients = torch.zeros_like(coefficients)
-        integrals = int_iso.reshape(-1, niso_functions)
-        charges = charges.flatten()
-        segments_uniques = segment_r.unique()
-
-        for i, sg in enumerate(segments_uniques):
-            mask = (segment_r == sg)
-            coefficients_sel = coefficients.index_select(0, mask.nonzero().squeeze())
-            integrals_sel = integrals.index_select(0, mask.nonzero().squeeze())
-            coefficients_res = self.solve_qp_problem(
-                coefficients_sel, integrals_sel, charges[i]
-            )
-            mask_expanded = mask.unsqueeze(1).expand(natoms * nbatch, niso_functions)
-            norm_coefficients.masked_scatter_(mask_expanded, coefficients_res)
-
-        return norm_coefficients.reshape_as(c_iso)
-
-    def solve_qp_problem(self, coefficients, integrals, charge):
-        natoms = coefficients.size()[0]
-        nfunctions = coefficients.size()[1] * natoms
-
-        lqoperator = (torch.eye(nfunctions, device=self.device) * 2)
-        integrals_flat = integrals.reshape(-1, nfunctions)
-        lqoperator = torch.cat([lqoperator, -integrals_flat], dim=0)
-
-        integrals_flat = integrals.reshape(1, nfunctions)
-        integrals_flat = torch.cat(
-            [
-                integrals_flat, torch.zeros(1, 1, dtype=torch.float, device=self.device)
-            ], dim=1
+        :param alpha:
+        :param optimize_alpha:
+        """
+        super(NearestNeighbourModule, self).__init__()
+        self.alpha = nn.Parameter(
+            torch.tensor([alpha], requires_grad=optimize_alpha, dtype=torch.float),
+            requires_grad=True
         )
-        lqoperator = torch.cat([lqoperator, integrals_flat.transpose(0, 1)], dim=1)
-
-        coefficients_flat = coefficients.reshape(nfunctions, 1)
-        charge_flat = charge.reshape(1, 1)
-        operator_problem = torch.cat(
-            [
-                2 * coefficients_flat,
-                -charge_flat
-            ], dim=0
-        )
-
-        operator_solution, lu = torch.solve(operator_problem, lqoperator)
-        solutions_iso, lagmult = torch.split(
-            operator_solution, [nfunctions, 1], dim=0
-        )
-        solutions_iso = solutions_iso.view_as(coefficients)
-
-        return solutions_iso
-
-
-class QMDensityFun:
-    def __init__(self, group, dtype, device):
-        from a2mdio import WFN_SYMMETRY_INDEX
-        if dtype is None:
-            dtype = torch.float
-        self.dtype = dtype
-        self.device = device
-        dm, exp, syms, centers, coords, nprims, ncenters = self.load(group)
-
-        self.dm = torch.tensor(dm, dtype=self.dtype, device=self.device)
-        self.exp = torch.tensor(exp, dtype=self.dtype, device=self.device)
-        self.sym = torch.tensor(syms, dtype=torch.int32, device=self.device)
-        self.centers = torch.tensor(centers, dtype=torch.int32, device=self.device)
-        self.coords = torch.tensor(coords, dtype=self.dtype, device=self.device)
-        self.nprims = nprims
-        self.ncenters = ncenters
-        self.sym_index = torch.tensor(WFN_SYMMETRY_INDEX, dtype=self.dtype, device=self.device)
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args)
-
-    def gto(self, x, i):
-
-        center = self.centers[i]
-        coords = self.coords[center, :]
-        sym_vector = self.sym_index[self.sym[i], :]
-        exp = self.exp[i]
-        distance_vector = (x - coords)
-        distance_module = distance_vector.pow(2.0).sum(1)
-        gaussian_term = (-exp * distance_module).exp()
-        sph_term = distance_vector[:, 0].pow(sym_vector[0])
-        sph_term *= distance_vector[:, 1].pow(sym_vector[1])
-        sph_term *= distance_vector[:, 2].pow(sym_vector[2])
-        return gaussian_term * sph_term
-
-    def distance_vector(self, x, i):
-        dims = x.size(0)
-        coords = self.coords[i, :].repeat(dims).reshape(dims, 3)
-        rv = (x - coords)
-        r = rv.pow(2.0).sum(1)
-        return rv, r
-
-    def forward(self, x):
-
-        basis = torch.zeros(self.nprims, x.size(0), dtype=self.dtype, device=self.device)
-
-        for i in range(self.nprims):
-            basis[i, :] = self.gto(x, i)
-
-        p = basis * (self.dm @ basis)
-
-        return p.sum(0)
 
     @staticmethod
-    def load(cwfn):
+    def distance_matrix(*x):
+        x0 = x[0]
+        x1 = x[1]
+        n = x0.size(0)  # this is the number of references
+        m = x1.size(0)  # this is the number of training points
+        d = x0.size(1)  # this should be n dim
+        x0p = x0.unsqueeze(1).expand(n, m, d)
+        x1p = x1.unsqueeze(0).expand(n, m, d)
+        return torch.sqrt(torch.pow(x0p - x1p, 2).sum(2))
 
-        if cwfn.attrs['contains_density_matrix']:
-            dm = cwfn['density_matrix'][:, :]
-        else:
-            raise IOError("missing DM")
+    def exp_kernel(self, *x):
+        """
 
-        exponents = cwfn['exponents'][:]
-        syms = cwfn['symmetry'][:]
-        centers = cwfn['centers'][:]
-        coords = cwfn['coordinates'][:, :]
-        primitives = cwfn.attrs['number_primitives']
-        nuclei = cwfn.attrs['number_centers']
+        :param x:
+        :return:
+        """
+        input_feats = x[0]
+        n = input_feats.size(0)
+        m = input_feats.size(1)
+        p = torch.exp(-input_feats * self.alpha)
+        z = p.sum(dim=1).reshape(-1, 1)
+        z = z.expand(n, m)
+        w = p / z
+        return w
 
-        return dm, exponents, syms, centers, coords, primitives, nuclei
+    def forward(self, *x):
+        """
+
+        :param x:
+            x[0] - training feats
+            x[1] - reference feats
+            x[2] - reference targets
+        :return:
+        """
+        a = self.distance_matrix(x[0], x[1])
+        w = self.exp_kernel(a)
+        return w.mm(x[2].reshape(-1, 1)).reshape(-1)
 
 
-class QMDensityBatch:
-    def __init__(self, filename: str, index: List[str], device: torch.device, dtype: torch.dtype):
-        self.filename = filename
-        self.map_index2group = index
-        self.dtype = dtype
-        self.device = device
+class TorchElementN3(nn.Module):
 
-    def forward(self, index: torch.Tensor, coordinates: torch.Tensor):
-        index = index.split(1, dim=0)
-        coordinates = coordinates.split(1, dim=0)
-        out = []
-        load_qm = lambda cwfn: QMDensityFun(group=cwfn, dtype=self.dtype, device=self.device)
-        wfnh5 = WaveFunctionHDF5(self.filename, mode='r', wfn_init=load_qm)
+    def __init__(self, nodes):
+        """
 
-        for i, x in zip(index, coordinates):
-            i = i.item()
-            x = x.squeeze(0)
-            key = self.map_index2group[i]
-            _, qmfun = wfnh5[key]
-            out.append(qmfun(x))
+        :param nodes:
+        """
+        super(TorchElementN3, self).__init__()
+        self.layers = nn.ModuleList()
+        for i in range(1, len(nodes)-1):
+            self.layers.append(nn.Linear(nodes[i-1], nodes[i], bias=True))
+            self.layers.append(nn.CELU())
+        self.layers.append(nn.Linear(nodes[-2], nodes[-1], bias=True))
+        self.layers.append(NearestNeighbourModule(alpha=1e2, optimize_alpha=True))
+        self.n_layers = len(self.layers)
 
-        out = torch.stack(out, dim=0)
-        wfnh5.close()
-        return out
+    def forward(self, *method_set):
+        """
+
+        :param method_set:
+        :return:
+        """
+
+        x_ref = method_set[0][0]
+        x_train = method_set[1]
+        y_ref = method_set[0][1]
+
+        for i in range(self.n_layers - 1):
+            x_ref = self.layers[i](x_ref)
+            x_train = self.layers[i](x_train)
+
+        return self.layers[-1](x_train, x_ref, y_ref)
+
+
+class TorchElementSpecificN3(nn.Module):
+    def __init__(self, nodes, elements):
+        super(TorchElementSpecificN3, self).__init__()
+        self.allowed_elements = elements
+        self.subnets = nn.ModuleList()
+        for _ in range(len(elements)):
+            self.subnets.append(
+                TorchElementN3(nodes=nodes)
+            )
+        self.output_size = nodes[-1]
+
+    def forward(self, *method_sets):
+        x_ref = method_sets[0][0]
+        y_ref = method_sets[0][1]
+        l_ref = method_sets[0][2]
+
+        x_train = method_sets[1][0]
+        l_train = method_sets[1][1]
+
+        assert isinstance(x_ref, torch.Tensor)
+        assert isinstance(l_ref, torch.Tensor)
+        assert isinstance(y_ref, torch.Tensor)
+        assert isinstance(x_train, torch.Tensor)
+        assert isinstance(l_train, torch.Tensor)
+
+        l_ref_ = l_ref.flatten()
+        l_train_ = l_train.flatten()
+
+        present_l_ref = l_ref.unique()
+        present_l_train = l_train.unique()
+
+        if present_l_ref[0].item() == 0:
+            present_l_ref = present_l_ref[1:]
+
+        if present_l_train[0].item() == 0:
+            present_l_train = present_l_train[1:]
+
+        present_l_ref, _ = present_l_ref.sort()
+        present_l_train, _ = present_l_train.sort()
+
+        y = torch.zeros(l_train_.size()[0], self.output_size, dtype=torch.float)
+        x_ref_ = x_ref.flatten(0, 1)
+        x_train_ = x_train.flatten(0, 1)
+        # y_ref_ = y_ref.flatten(0, 1)
+
+        for i, n in enumerate(present_l_train):
+            mask_input_train = (l_train_ == n)
+            mask_input_ref = (l_ref_ == n)
+
+            if not torch.any(mask_input_ref):
+                raise RuntimeError("the reference has not the element requested")
+
+            m_ref = mask_input_ref.nonzero().squeeze()
+            m_train = mask_input_train.nonzero().squeeze()
+
+            u_ref = x_ref_.index_select(0, m_ref)
+            u_train = x_train_.index_select(0, m_train)
+            v_ref = y_ref.index_select(0, m_ref)
+            y.masked_scatter_(mask_input_train, self.subnets[ELEMENT2NN[n.item()]]((u_ref, v_ref), u_train))
+        y.reshape(l_train.size()[0], l_train.size()[1], self.output_size)
+        return l_train, y

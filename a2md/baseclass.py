@@ -1,8 +1,7 @@
 import time
 
-
-class A2MDBaseClass:
-    def __init__(self, name, verbose=False):
+class A2MDBaseClass :
+    def __init__(self, name , verbose = False):
         """
         aAMD basis class
         :param name: name of the class
@@ -12,8 +11,8 @@ class A2MDBaseClass:
         """
         self.v = verbose
         self.__name = name
-        self.__fun = []
-        self.__ang = []
+        self.__fun  = []
+        self.__ang  = []
 
     def __str__(self):
         return 'A2MD | ' + self.__name
@@ -33,7 +32,7 @@ class A2MDBaseClass:
         :param message: message to log
         :return: None
         """
-        if self.v:
+        if self.v :
             t = time.localtime()
             formatted_t = '%02d:%02d:%02d' % (t.tm_hour, t.tm_min, t.tm_sec)
             print("[{0}] - {1} - {2} ".format(self.__name, message, formatted_t))

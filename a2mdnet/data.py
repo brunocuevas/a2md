@@ -7,19 +7,15 @@ from torch.utils import data
 import torch
 import json
 import warnings
-from pathlib import Path
-
 
 def convert_label2tensor(label, device=torch.device('cpu')):
     u = [ELEMENT2NN[i] for i in label]
     return torch.tensor(u, device=device, dtype=torch.long)
 
-
 def convert_targets2tensor(
         targets, device=torch.device('cpu'), dtype=torch.float
 ):
     return torch.tensor(targets, device=device, dtype=dtype).reshape(-1, 1)
-
 
 def match_old_fun_names(fun):
     if fun['bond'] is not None and fun['support_type'] == "AG":
@@ -42,7 +38,6 @@ def match_old_fun_names(fun):
             raise IOError("unknown support type {:s}".format(fun['support_type']))
     else:
         raise IOError("can not understand function {:s}".format(json.dumps(fun)))
-
 
 def match_fun_names(fun):
     fn = fun['support_type']
@@ -76,11 +71,6 @@ class MolecularDataset(data.Dataset):
 
         max_atoms = 0
         max_bonds = 0
-
-        if type(molecular_data_path) is not Path:
-            molecular_data_path = Path(molecular_data_path)
-        if type(model_parameters_path) is not Path:
-            model_parameters_path = Path(model_parameters_path)
 
         for i in ids:
 
@@ -131,6 +121,7 @@ class MolecularDataset(data.Dataset):
                         print("-", end="")
                     elif idx % 1000 == 0 and idx != 0:
                         print("-", end=" {:8d}\n".format(idx))
+
 
     def calculate_integral(self, fun):
         """
@@ -188,8 +179,8 @@ class MolecularDataset(data.Dataset):
         connectivity_tensor = torch.ones(self.max_bonds, 2, device=torch.device('cpu'), dtype=torch.long) * -1
         charges_tensor = torch.zeros(self.max_atoms, dtype=self.dtype, device=torch.device('cpu'))
         isotropic_params = torch.zeros(self.max_atoms, 2, dtype=self.dtype, device=torch.device('cpu'))
-        anisotropic_params = torch.zeros(self.max_bonds, 4, dtype=self.dtype, device=torch.device('cpu'))
-        isotropic_integrals = torch.zeros(self.max_atoms, 2, dtype=self.dtype, device=torch.device('cpu'))
+        anisotropic_params= torch.zeros(self.max_bonds, 4, dtype=self.dtype, device=torch.device('cpu'))
+        isotropic_integrals= torch.zeros(self.max_atoms, 2, dtype=self.dtype, device=torch.device('cpu'))
         anisotropic_integrals = torch.zeros(self.max_bonds, 4, dtype=self.dtype, device=torch.device('cpu'))
 
         coords_tensor[:na, :] = torch.tensor(mm.get_coordinates(), device=torch.device('cpu'), dtype=self.dtype)
@@ -235,23 +226,18 @@ class MolecularDataset(data.Dataset):
 
 
 class MolecularElectronDensityDataset(MolecularDataset):
-    DENSITY_POINTS = 1000
-
+    DENSITY_POINTS=1000
     def __init__(
-            self, device, dtype, ids=None, model_parameters_path=None,
-            molecular_data_path=None, density_data_path=None,
-            mol_prop=None, prefetch=True, integration_method=integrate_from_dict,
-            match_method=match_fun_names
+        self, device, dtype, ids=None, model_parameters_path=None,
+        molecular_data_path=None, density_data_path=None,
+        mol_prop=None, prefetch=True, integration_method=integrate_from_dict,
+        match_method=match_fun_names
     ):
         MolecularDataset.__init__(
             self, device, dtype, ids, model_parameters_path,
             molecular_data_path, prefetch, integration_method=integration_method,
             match_method=match_method
         )
-
-        if density_data_path is not None:
-            if type(density_data_path) is not Path:
-                density_data_path = Path(density_data_path)
 
         self.density_data_path = density_data_path
         self.density_buffer = []
@@ -298,181 +284,3 @@ class MolecularElectronDensityDataset(MolecularDataset):
                 output.append(torch.tensor(self.mol_prop[self.ids[item]], dtype=self.dtype, device=self.device))
 
             return output
-
-
-class MonomerDataset:
-    def __init__(
-            self, device, dtype, ids=None, molecular_data_path=None, max_atoms=50, max_bonds=50
-    ):
-        """
-        MonomerDataset
-        ---
-        Allows to load batches of coordinates + atom_types + topology + charge + function integrals +
-        coefficients targets. It is used to train deep learning models.
-
-        :param device: either cuda or cpu
-        :param dtype: float32 or float64 to specify either single or double precission
-        :param ids: names of the molecules that will be read by this data loader
-        :param molecular_data_path: path where Mol2 files of specified molecules should be located
-        """
-
-        self.ids = ids
-
-        if type(molecular_data_path) is not Path:
-            molecular_data_path = Path(molecular_data_path)
-
-        self.mol_path = molecular_data_path
-        self.device = device
-        self.dtype = dtype
-        self.max_atoms = max_atoms
-        self.max_bonds = max_bonds
-
-        self.labels = []
-        self.connectivity = []
-        self.coordinates = []
-        self.charge = []
-
-        for idx in range(len(self.ids)):
-            l, t, x, q= self.fetch(idx)
-            self.labels.append(l)
-            self.connectivity.append(t)
-            self.coordinates.append(x)
-            self.charge.append(q)
-
-            if idx % 100 == 0:
-                if idx % 1000 != 0:
-                    print("-", end="")
-                elif idx % 1000 == 0 and idx != 0:
-                    print("-", end=" {:8d}\n".format(idx))
-
-    def __len__(self):
-        return len(self.ids)
-
-    def fetch(self, item):
-        """
-
-        :param item:
-        :return:
-        """
-
-        identifier = self.ids[item]
-        mm = Mol2(self.mol_path / '{:s}.mol2'.format(identifier))
-
-        na = mm.get_number_atoms()
-        nb = mm.get_number_bonds()
-
-        coords_tensor = torch.zeros(self.max_atoms, 3, dtype=self.dtype, device=torch.device('cpu'))
-        labels_tensor = torch.ones(self.max_atoms, dtype=torch.long, device=torch.device('cpu')) * -1
-        connectivity_tensor = torch.ones(self.max_bonds, 2, device=torch.device('cpu'), dtype=torch.long) * -1
-        charges_tensor = torch.zeros(self.max_atoms, dtype=self.dtype, device=torch.device('cpu'))
-
-        coords_tensor[:na, :] = torch.tensor(mm.get_coordinates(), device=torch.device('cpu'), dtype=self.dtype)
-        labels_tensor[:na] = convert_label2tensor(mm.get_atomic_numbers(), device=self.device)
-        connectivity_tensor[:nb, :] = torch.tensor(mm.get_bonds() - 1, device=torch.device('cpu'), dtype=torch.uint8)
-        charges_tensor[:na] = torch.tensor(mm.get_absolute_charges(), device=self.device, dtype=self.dtype)
-
-        return [
-            i.to(self.device) for i in [labels_tensor, connectivity_tensor, coords_tensor, charges_tensor]
-        ]
-
-    def __getitem__(self, item):
-
-        return [
-            item, self.labels[item], self.connectivity[item], self.coordinates[item],
-            self.charge[item]
-        ]
-
-
-class PolymerDataset:
-
-    def __init__(
-            self, device, dtype, ids=None,
-            molecular_data_path=None , max_atoms=50, max_bonds=50
-    ):
-        """
-
-        :param device:
-        :param dtype:
-        :param ids:
-        :param max_atoms:
-        :param molecular_data_path:
-        :param max_bonds:
-        """
-        from a2mdio import PDB_PROTEIN_CHARGES
-
-        if type(molecular_data_path) is not Path:
-            molecular_data_path = Path(molecular_data_path)
-
-        self.ids = ids
-
-        max_atoms = max_atoms
-        max_bonds = max_bonds
-
-        self.mol_path = molecular_data_path
-        self.device = device
-        self.dtype = dtype
-        self.max_atoms = max_atoms
-        self.max_bonds = max_bonds
-        self.dcharges = PDB_PROTEIN_CHARGES
-
-        self.labels = []
-        self.connectivity = []
-        self.coordinates = []
-        self.charge = []
-        self.segments = []
-        self.segcharge = []
-
-        for idx in range(len(self.ids)):
-            l, t, x, q, s, sq = self.fetch(idx)
-            self.labels.append(l)
-            self.connectivity.append(t)
-            self.coordinates.append(x)
-            self.charge.append(q)
-            self.segments.append(s)
-            self.segcharge.append(sq)
-
-            if idx % 100 == 0:
-                if idx % 1000 != 0:
-                    print("-", end="")
-                elif idx % 1000 == 0 and idx != 0:
-                    print("-", end=" {:8d}\n".format(idx))
-
-    def fetch(self, item):
-
-        identifier = self.ids[item]
-        mm = Mol2(self.mol_path / '{:s}.mol2'.format(identifier))
-
-        na = mm.get_number_atoms()
-        nb = mm.get_number_bonds()
-
-        coords_tensor = torch.zeros(self.max_atoms, 3, dtype=self.dtype, device=torch.device('cpu'))
-        labels_tensor = torch.ones(self.max_atoms, dtype=torch.long, device=torch.device('cpu')) * -1
-        connectivity_tensor = torch.ones(self.max_bonds, 2, device=torch.device('cpu'), dtype=torch.long) * -1
-        charges_tensor = torch.zeros(self.max_atoms, dtype=self.dtype, device=torch.device('cpu'))
-        segment_tensor = torch.zeros(self.max_atoms, dtype=torch.long, device=torch.device('cpu'))
-
-        coords_tensor[:na, :] = torch.tensor(mm.get_coordinates(), device=torch.device('cpu'), dtype=self.dtype)
-        labels_tensor[:na] = convert_label2tensor(mm.get_atomic_numbers(), device=self.device)
-        connectivity_tensor[:nb, :] = torch.tensor(mm.get_bonds() - 1, device=torch.device('cpu'), dtype=torch.uint8)
-        charges_tensor[:na] = torch.tensor(mm.get_absolute_charges(), device=self.device, dtype=self.dtype)
-        segment_tensor[:na] = torch.tensor(mm.segment_idx, device=self.device, dtype=self.dtype)
-
-        segments = [i for i in mm.get_all_segs()]
-        segments = [i[:-1] for i in segments]
-        segcharges = torch.tensor(
-            [self.dcharges[i]['population'] for i in segments], device=self.device, dtype=self.dtype)
-
-        return [i.to(self.device) for i in [
-            labels_tensor, connectivity_tensor, coords_tensor,
-            charges_tensor, segment_tensor, segcharges
-            ]
-        ]
-
-    def __len__(self):
-        return len(self.ids)
-
-    def __getitem__(self, item):
-        return [
-            item, self.labels[item], self.connectivity[item], self.coordinates[item],
-            self.charge[item], self.segments[item], self.segcharge[item]
-        ]

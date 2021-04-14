@@ -3,11 +3,11 @@ import numpy as np
 from a2md.mathfunctions import get_polar_rep
 from a2md.mathfunctions import generalized_exponential, generalized_exponential_integral
 from a2md.mathfunctions import gaussian, angular_gaussian_integral
-from a2md.mathfunctions import electrostatic_potential_xexp_gaussian
+from a2md.mathfunctions import electrostatic_potential_exp, electrostatic_potential_xexp_gaussian
 from a2md.mathfunctions import spherical_harmonic, pe_harmonic
 
 
-class Support(A2MDBaseClass):
+class Support(A2MDBaseClass) :
     def __init__(self, **kwargs):
         r"""
         Support functions. It requires:
@@ -22,7 +22,7 @@ class Support(A2MDBaseClass):
         * *angular_function_type* *(``int``)
 
         """
-        A2MDBaseClass.__init__(self, name='support function ', verbose=False)
+        A2MDBaseClass.__init__(self, name ='support function ', verbose=False)
         self.coordinates = kwargs['coordinates']
         self.coordinate_system = None
         self.eval_method = None
@@ -101,22 +101,22 @@ class Support(A2MDBaseClass):
         :return: True
         """
         w /= np.linalg.norm(w)
-        basis = np.zeros((3, 3), dtype='float64')
-        new_x = np.array([-w[1] - w[2], w[0], w[0]], dtype='float64')
+        B = np.zeros((3, 3), dtype='float64')
+        new_x = np.array([-w[1]-w[2], w[0], w[0]], dtype='float64')
         new_x /= np.linalg.norm(new_x)
         new_y = np.cross(w, new_x)
-        basis[:, 0] = new_x
-        basis[:, 1] = new_y
-        basis[:, 2] = w
+        B[:, 0] = new_x
+        B[:, 1] = new_y
+        B[:, 2] = w
         try:
-            self.coordinate_system = np.linalg.inv(basis)
+            self.coordinate_system = np.linalg.inv(B)
         except np.linalg.LinAlgError:
             new_x = np.cross(w, np.array([1, 0, 0], dtype='float64'))
             new_y = np.cross(w, new_x)
-            basis[:, 0] = new_x
-            basis[:, 1] = new_y
-            basis[:, 2] = w
-            self.coordinate_system = np.linalg.inv(basis)
+            B[:, 0] = new_x
+            B[:, 1] = new_y
+            B[:, 2] = w
+            self.coordinate_system = np.linalg.inv(B)
         return True
 
 
@@ -125,7 +125,6 @@ class SupportRadial(Support):
     support - outer radial function
         \ro(r) = A3 * e^-(B3*r)
     """
-
     def __init__(self, **kwargs):
         r"""
         Support functions. It requires:
@@ -149,32 +148,23 @@ class SupportRadial(Support):
             self.__B = kwargs['B']
         except KeyError:
             raise IOError("missing parameters A3|B3|P")
-
-        try:
-            self.__P = kwargs['P']
-        except KeyError:
-            self.__P = 0
-        self.eval_method = self.__eval
-        self.integral_method = self.__integrate
-        self.eval_ep_method = self.__ep
+        self.eval_method = self.__eval_outer
+        self.integral_method = self.__integral_outer
+        self.eval_ep_method = self.__eval_ep_outer
         self.support_type = 'radial'
-        self.params_kw = ['A', 'B', 'P']
+        self.params_kw = ['A', 'B']
         self.anisotropic = False
 
-    def __eval(self, x):
+    def __eval_outer(self, x):
         d = np.linalg.norm(x - self.coordinates, axis=1)
-        return generalized_exponential(
-            A=self.__A, B=self.__B, d=d, P=self.__P
-        )
+        return generalized_exponential(self.__A, self.__B, d)
 
-    def __integrate(self):
-        return generalized_exponential_integral(
-            A=self.__A, B=self.__B, P=self.__P
-        ) * 4 * np.pi
+    def __integral_outer(self):
+        return generalized_exponential_integral(self.__A, self.__B) * 4 * np.pi
 
-    def __ep(self, x):
+    def __eval_ep_outer(self, x):
         d = np.linalg.norm(x - self.coordinates, axis=1)
-        v = pe_harmonic(d, 0.0, 0, self.__P, self.__B) * self.__A
+        v = electrostatic_potential_exp(self.__A, self.__B, d)
         return v
 
 
@@ -185,7 +175,7 @@ class SupportAngular(Support):
         :param kwargs:
         """
         Support.__init__(self, **kwargs)
-        try:
+        try :
             self.__alpha = kwargs['alpha']
             self.__B = kwargs['B']
             self.__A = kwargs['A']
@@ -198,19 +188,19 @@ class SupportAngular(Support):
         self.eval_method = self.__eval_trigo
         self.integral_method = self.__integral_trigo
         self.eval_ep_method = self.__eval_ep_ag
-        self.params_kw = ['alpha', 'B', 'A']
+        self.params_kw = ['alpha','B', 'A']
         if 'P' in kwargs.keys():
             self.params_kw.append('P')
         self.support_type = 'angular'
         self.anisotropic = True
 
-    def __eval_trigo(self, x):
+    def __eval_trigo(self,x):
         if self.coordinate_system is None:
             raise RuntimeError("reference frame was not created. can not calculate angular function")
         else:
-            z, d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
-            radial_component = generalized_exponential(self.__A, self.__B, d, self.__P)
-            angular_component = gaussian(self.__alpha, 1.0, z)
+            z,d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
+            radial_component=generalized_exponential(self.__A, self.__B, d, self.__P)
+            angular_component=gaussian(self.__alpha, 1.0, z)
             return radial_component * angular_component
 
     def __integral_trigo(self):
@@ -224,10 +214,9 @@ class SupportAngular(Support):
         if self.coordinate_system is None:
             raise RuntimeError("reference frame was not created. can not calculate angular function")
         else:
-            z, d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
+            z,d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
             u = electrostatic_potential_xexp_gaussian(self.__B, self.__alpha, d, z)
             return u * self.__A
-
 
 class SupportHarmonic(Support):
     def __init__(self, **kwargs):
@@ -236,7 +225,7 @@ class SupportHarmonic(Support):
         :param kwargs:
         """
         Support.__init__(self, **kwargs)
-        try:
+        try :
             self.__l = kwargs['l']
             self.__B = kwargs['B']
             self.__A = kwargs['A']
@@ -246,16 +235,16 @@ class SupportHarmonic(Support):
         self.eval_method = self.__eval_trigo
         self.integral_method = self.__integral_harmonic
         self.eval_ep_method = self.__eval_ep_harmonic
-        self.params_kw = ['l', 'B', 'A', 'P']
+        self.params_kw = ['l','B', 'A', 'P']
         self.support_type = 'harmonic'
         self.anisotropic = True
 
-    def __eval_trigo(self, x):
+    def __eval_trigo(self,x):
         if self.coordinate_system is None:
             raise RuntimeError("reference frame was not created. can not calculate angular function")
         else:
-            z, d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
-            radial_component = generalized_exponential(self.__A, self.__B, d, self.__P)
+            z,d = get_polar_rep(x, center=self.coordinates, ref_frame=self.coordinate_system)
+            radial_component=generalized_exponential(self.__A, self.__B, d, self.__P)
             angular_component = spherical_harmonic(z, self.__l)
             return radial_component * angular_component
 
@@ -296,6 +285,7 @@ class SupportEnsemble(A2MDBaseClass):
         for fun in self.fun:
             y += fun.eval_ep(x)
         return y
+
 
     def integral(self):
         z = 0.0

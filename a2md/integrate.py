@@ -3,8 +3,7 @@ from typing import Callable
 from a2mdio.molecules import Mol2
 from a2md.models import Molecule
 
-
-def voronoi(x: np.ndarray, r: np.ndarray):
+def voronoi(x : np.ndarray, r : np.ndarray):
     """
     voronoi
     ---
@@ -20,8 +19,7 @@ def voronoi(x: np.ndarray, r: np.ndarray):
     t = np.argmin(d, axis=1)
     return t
 
-
-def split_space(mm: Mol2, fun: Callable):
+def split_space(mm : Mol2, fun : Callable):
     """
     split space
     ---
@@ -34,10 +32,10 @@ def split_space(mm: Mol2, fun: Callable):
     n = mm.get_number_atoms()
     for i in range(n):
         r0 = r[i, :]
-        yield lambda x: fun(x + r0) * (voronoi(x + r0, r) == i)
+        yield lambda x : fun(x + r0) * (voronoi(x + r0, r) == i)
 
 
-def pi_lebedev(fun: Callable, r_max=10.0, radial_res=100, grid='medium'):
+def pi_lebedev(fun : Callable, r_max=10.0, radial_res=100, grid='medium'):
     """
     polar integral
     ---
@@ -77,12 +75,11 @@ def pi_lebedev(fun: Callable, r_max=10.0, radial_res=100, grid='medium'):
 
         f = (f00 + 4 * f01 + f02) / 6
         f = f * w * dv * 4 * np.pi
-        integral += f.sum()
+        integral +=  f.sum()
 
     return integral
 
-
-def pi_lebedev_m(fun: Callable, n_out: int, r_max=10.0, radial_res=100, grid='coarse'):
+def pi_lebedev_m(fun : Callable, n_out : int, r_max=10.0, radial_res=100, grid='coarse'):
     from a2md import LEBEDEV_DESIGN
     lebedevdesgin = np.loadtxt(LEBEDEV_DESIGN[grid])
 
@@ -117,75 +114,62 @@ def pi_lebedev_m(fun: Callable, n_out: int, r_max=10.0, radial_res=100, grid='co
     return integral
 
 
-def integrate_density_functional(functional: Callable, mol: Mol2, grid='coarse', res=100):
+def integrate_density_functional(functional:Callable, mol:Mol2, grid='coarse', res=100):
     functional_value = 0.0
     for fx in split_space(mm=mol, fun=functional):
         functional_value += pi_lebedev(fx, radial_res=res, grid=grid)
     return functional_value
 
-
-def integrate_density_functional_gradient(functional: Callable, mol: Mol2, nfuns: int, grid='coarse', res=100):
+def integrate_density_functional_gradient(functional:Callable, mol:Mol2, nfuns:int, grid='coarse', res=100):
     r = mol.get_coordinates(units='au')
     n = mol.get_number_atoms()
     functional_value = np.zeros(nfuns, dtype='float64')
     for i in range(n):
         r0 = r[i, :]
-        fx = lambda x: functional(x + r0) * (voronoi(x + r0, r) == i).reshape(-1, 1)
+        fx = lambda x : functional(x + r0) * (voronoi(x + r0, r) == i).reshape(-1, 1)
         functional_value += pi_lebedev_m(fx, nfuns, radial_res=res, grid=grid)
     return functional_value
 
-
-def kinetic_energy_functional(fun: Callable):
-    cf = (3 / 10) * ((3 * np.pi ** 2) ** (2 / 3))
-    ke = lambda x: cf * np.power(fun(x), 5 / 3)
+def kinetic_energy_functional(fun:Callable):
+    cf = (3/10) * ((3 * np.pi**2)**(2/3))
+    ke = lambda x : cf * np.power(fun(x),5/3)
     return ke
 
-
-def exchange_energy_functional(fun: Callable):
-    cx = -(3 / 4) * ((3 / np.pi) ** (1 / 3))
+def exchange_energy_functional(fun:Callable):
+    cx = -(3/4)*((3/np.pi)**(1/3))
     xe = lambda x: cx * np.power(fun(x), 4 / 3)
     return xe
 
-
-def mse_functional(ref: Callable, fun: Callable):
+def mse_functional(ref : Callable, fun : Callable):
     def mse(x):
         rxf = ref(x)
         fxf = fun(x)
         return rxf * np.power(fxf - rxf, 2.0)
-
     return mse
 
-
-def mlse_functional(ref: Callable, fun: Callable):
+def mlse_functional(ref : Callable, fun : Callable):
     def mlse(x):
         rxf = ref(x)
         fxf = fun(x)
         return rxf * np.log(np.power(fxf - rxf, 2.0))
-
     return mlse
 
-
-def dkl_functional(ref: Callable, fun: Callable):
+def dkl_functional(ref : Callable, fun : Callable):
     def dkl(x):
         rxf = ref(x)
         fxf = fun(x)
-        return fxf * np.log(fxf / rxf)
-
+        return fxf * np.log(fxf/rxf)
     return dkl
-
 
 def vdwvolume_functional(ref: Callable, eps=1e-3):
     def vdwvol(x):
         rxf = ref(x)
         return (rxf > eps).astype(float)
-
     return vdwvol
 
-
-def dkl_gradient_functional(ref: Callable, model: Molecule):
+def dkl_gradient_functional(ref : Callable, model : Molecule):
     nopt = model.get_number_optimizable_functions()
     nfuns = model.get_number_functions()
-
     def dkl_gradient(x):
         u = np.zeros((x.shape[0], nopt), dtype='float64')
         pref = ref(x)
@@ -195,5 +179,4 @@ def dkl_gradient_functional(ref: Callable, model: Molecule):
         for idx, fun_idx in enumerate(indx):
             u[:, idx] = model.functions[fun_idx].eval(x) * lp
         return u
-
     return dkl_gradient

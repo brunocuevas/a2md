@@ -1,6 +1,6 @@
 from a2mdnet import modules
 # from a2mdnet.functions import APEV
-from a2mdnet.density_models import A2MDt
+from a2mdnet.a2mdt.modules import A2MDt
 from a2mdnet.a2mdt import A2MD_MODEL
 import json
 import torch
@@ -28,7 +28,7 @@ WEIGHT_DECAY = 1e-2
 class DensityCoupled(nn.Module):
 
     def __init__(self, architecture, device):
-        from a2mdnet.density_models import A2MDt
+        from a2mdnet.a2mdt.modules import A2MDt
         from a2mdnet.a2mdt import A2MD_MODEL
         super(DensityCoupled, self).__init__()
 
@@ -204,7 +204,7 @@ class DensityCoupled(nn.Module):
 class MultTaskDensityCoupled(nn.Module):
 
     def __init__(self, architecture, device):
-        from a2mdnet.density_models import A2MDt
+        from a2mdnet.a2mdt.modules import A2MDt
         super(MultTaskDensityCoupled, self).__init__()
 
         self.device = device

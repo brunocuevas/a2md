@@ -1,7 +1,7 @@
 import numpy as np
 from a2mdio.molecules import Mol2, UNITS_TABLE
 from a2mdio.qm import WaveFunction, GaussianLog
-from typing import Dict
+from a2md.models import Molecule
 
 
 def sample_box(
@@ -92,12 +92,12 @@ def get_normal_modes(g09_output, natoms):
     nlines = 7 + natoms
 
     for mode_row in range(nrows):
-        row = g09_output[mode_row * nlines:(mode_row + 1) * nlines]
+        row = g09_output[mode_row*nlines:(mode_row+1)*nlines]
         index = [int(i) - 1 for i in row[0].split()]
         freq_row = row[2].split()
         force_row = row[4].split()
         frequencies[index] = [float(i) for i in freq_row[2:]]
-        forces[index] = [float(i) for i in force_row[3:]]
+        forces[index] = [float(i) for i in  force_row[3 :]]
         vector_rows = row[7:]
         for i in range(natoms):
             vector = vector_rows[i].split()
@@ -113,8 +113,8 @@ def get_normal_modes(g09_output, natoms):
 
     return frequencies, forces, modes
 
-
 def write_xyz(filename, coords, labels):
+
     with open(filename, 'w') as f:
         f.write('{:d}\n'.format(len(labels)))
         f.write('\n')
@@ -124,7 +124,6 @@ def write_xyz(filename, coords, labels):
                     labels[i], coords[i, 0], coords[i, 1], coords[i, 2]
                 )
             )
-
 
 def eval_volume(fun, resolution, size, shift):
     from a2mdio.qm import ElectronDensity
@@ -147,7 +146,7 @@ def eval_volume(fun, resolution, size, shift):
     dx = np.zeros((xx.size, yy.size, zz.size))
 
     for ix in range(xx.size):
-        r[:, 0] = xx[ix]
+        r[:, 0]= xx[ix]
         for iy in range(yy.size):
             r[:, 1] = yy[iy]
             dx[ix, iy, :] = fun(r)
@@ -158,11 +157,10 @@ def eval_volume(fun, resolution, size, shift):
     vol.set_volume(dx)
     return vol
 
-B0 = lambda u: np.polyval([1, 0, 0, 0], 1 - u) / 6.0
-B1 = lambda u: np.polyval([3, -6., 0., 4.0], u) / 6.0
-B2 = lambda u: np.polyval([-3, 3, 3, 1], u) / 6.0
-B3 = lambda u: (u ** 3) / 6.0
-
+B0 = lambda u : np.polyval([1, 0, 0, 0], 1 - u) / 6.0
+B1 = lambda u : np.polyval([3, -6., 0., 4.0], u) / 6.0
+B2 = lambda u : np.polyval([-3, 3, 3, 1], u) / 6.0
+B3 = lambda u : (u**3) / 6.0
 
 def bspline_z(i, u, charge):
     if i > 2:
@@ -174,7 +172,6 @@ def bspline_z(i, u, charge):
         p3 = B3(u) * charge[i + 5]
     return p0 + p1 + p2 + p3
 
-
 def spline_point_charge(x, r, Z, resolution):
     mu = np.linalg.norm(x - r, axis=1) / resolution
     muint = mu.astype(int)
@@ -182,19 +179,17 @@ def spline_point_charge(x, r, Z, resolution):
 
     murange = np.arange(-3, 100, 1) * resolution
     mucharge = np.zeros(murange.size)
-    mucharge[3] = Z / ((4 / 3) * np.pi * (resolution ** 3))
+    mucharge[3] = Z  / ((4/3) * np.pi * (resolution ** 3))
     q = np.zeros(x.shape[0])
     for i in range(mu.size):
         q[i] = bspline_z(muint[i], murest[i], mucharge)
     return q
 
-
 def splined_nuclear_charge(x, r, q, resolution):
     y = np.zeros(x.shape[0])
     for i in range(r.shape[0]):
-        y += spline_point_charge(x, r[i, :], q[i], resolution)
+        y+=spline_point_charge(x, r[i, :], q[i], resolution)
     return y
-
 
 def eval_charge(x, dm, resolution):
     r = dm.coordinates
@@ -203,15 +198,3 @@ def eval_charge(x, dm, resolution):
     neg = dm.eval(x)
     return pos - neg
 
-
-def rename_atoms(mol: Mol2, new_names: Dict):
-    n = mol.get_number_atoms()
-    if len(new_names['_ATOMS']) != n:
-        raise RuntimeError("number of atoms does not match")
-    new_anames = [i[0] for i in new_names['_ATOMS']]
-    new_segmentsidx = [i[1] for i in new_names['_ATOMS']]
-    new_segments = [new_names['_SEGMENTS'][i[1]] for i in new_names['_ATOMS']]
-    mol.atom_names = new_anames
-    mol.segments = new_segments
-    mol.segment_idx = new_segmentsidx
-    return mol

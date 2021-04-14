@@ -5,11 +5,11 @@ from a2mdnet.functions import distance, distance_vectors, angle
 from a2mdnet.functions import gaussian_kernel, exponential_kernel, xexponential_kernel, gen_exponential_kernel
 from a2mdnet.functions import select_distances, select_labels
 from a2mdnet.functions import expand_parameter
+from a2md.utils import element2an
 from a2mdio.molecules import UNITS_TABLE
 from a2mdio.params import AMDParameters
 from a2mdnet import ALLOWED_SPECIES, ELEMENT2SYMBOL, SYMBOL2NN
 from a2mdio.molecules import Mol2
-from a2mdio import get_atomic_number
 import math
 
 
@@ -46,7 +46,7 @@ class A2MDtFun:
         """
         self.device = device
         self.elements = convert_label2tensor(
-            [get_atomic_number(i) for i in elements], device=device
+            [element2an(i) for i in elements], device=device
         )
         self.raw_params = params
         self.params = dict()

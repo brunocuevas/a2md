@@ -4,7 +4,6 @@ from a2md.utils import integrate_from_dict
 from a2mdnet.data import match_fun_names
 import warnings
 import torch
-from typing import Callable, Dict
 
 
 def get_charges(l, t, i_iso, i_aniso, iso, aniso, device):
@@ -16,7 +15,6 @@ def get_charges(l, t, i_iso, i_aniso, iso, aniso, device):
     :param i_aniso:
     :param iso:
     :param aniso:
-    :param device:
     :return:
     """
 
@@ -24,7 +22,7 @@ def get_charges(l, t, i_iso, i_aniso, iso, aniso, device):
     n_batch = l.size(0)
     n_atoms = l.size(1)
     n_bond = t.size(1)
-    n_bond_funs = int(i_aniso.size(2) / 2)
+    n_bond_funs = int(i_aniso.size(2)/2)
 
     # Calculating function charges
     charge_iso = (i_iso * iso)
@@ -52,7 +50,6 @@ def get_charges(l, t, i_iso, i_aniso, iso, aniso, device):
 
     q_per_atom = q_aniso + q_iso
     return q_per_atom
-
 
 class Parametrizer:
 
@@ -97,8 +94,7 @@ class Parametrizer:
         int_iso = int_iso.to(self.device)
         int_aniso = int_aniso.to(self.device)
 
-        _, _, iso_out, aniso_out = self.model.forward_coefficients(labels, connectivity, coords, charge, int_iso,
-                                                                   int_aniso)
+        _, _, iso_out, aniso_out = self.model.forward_coefficients(labels, connectivity, coords, charge, int_iso, int_aniso)
 
         if iso_out.is_cuda:
             iso_out = iso_out.squeeze(0).cpu().data.numpy()
@@ -131,55 +127,10 @@ class Parametrizer:
                     topology[j, 0] == fun['bond']
             )
             if c1:
+
                 return j, 0
             if c2:
+
                 return j, 0 + 2
 
         warnings.warn("bond was not matched")
-
-
-class CoordinatesSampler:
-
-    def __init__(
-            self, device: torch.device, dtype: torch.dtype,
-            sampler: Callable, sampler_args: Dict
-    ):
-        """
-        coordinates sampler
-        ---
-        performs a 3d coordinates sample given some initical coordinates
-        """
-        self.sampler = sampler
-        self.sampler_args = sampler_args
-        self.device = device
-        self.dtype = dtype
-
-    @staticmethod
-    def principal_components(coords: torch.Tensor):
-        mean = coords.mean(1, keepdim=True)
-        x = coords - mean
-        n = coords.size()[1]
-        c = x.transpose(1, 2) @ x / n
-        eig, eiv = torch.symeig(c, eigenvectors=True)
-        eivp = eiv.inverse()
-        x = (eivp @ x.transpose(1, 2)).transpose(1, 2)
-        # x += mean
-        return x, eiv, mean
-
-    @staticmethod
-    def random_box(coords, device, dtype, n_sample=1000, spacing=6.0):
-        r = torch.rand(coords.size()[0], n_sample, 3, device=device, dtype=dtype)
-        rotcoords, eivp, mean = CoordinatesSampler.principal_components(coords)
-        box_min = rotcoords.min(1, keepdim=True)[0] - spacing
-        box_max = rotcoords.max(1, keepdim=True)[0] + spacing
-        diff = box_max + (box_min * -1)
-        r = (r * diff) + box_min
-        r = (eivp @ r.transpose(1, 2)).transpose(1, 2)
-        r += mean
-        return r
-
-    def __call__(self, coords):
-        r = self.sampler(
-            coords=coords, device=self.device, dtype=self.dtype, **self.sampler_args
-        )
-        return r

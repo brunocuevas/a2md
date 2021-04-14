@@ -9,24 +9,18 @@ import click
 import sys
 from a2mdio.molecules import Mol2
 
-
 @click.group()
 def cli():
-    """ Torch ANI conformational energy/opt/MD"""
     pass
-
 
 @click.command()
 @click.option('--model', default='ani1x', help='predictor used')
 @click.option('--device', default='cpu', help='where data is stored')
 @click.argument('molecule')
 def energy(molecule, model, device):
-    """
-    returns molecule energy
-    """
     mm = Mol2(molecule)
     pos = mm.get_coordinates()
-    labels = ''.join(mm.get_symbols())
+    labels = ''.join(mm.get_labels())
     device = torch.device(device)
     if model.lower() == 'ani1x':
         model = torchani.models.ANI1x()
@@ -40,7 +34,6 @@ def energy(molecule, model, device):
     print("{:26s} {:18.6e}".format(molecule, atom_group.get_potential_energy() / units.Hartree))
     sys.exit(0)
 
-
 @click.command()
 @click.option('--model', default='ani1x', help='predictor used')
 @click.option('--device', default='cpu', help='where data is stored')
@@ -49,14 +42,11 @@ def energy(molecule, model, device):
 @click.option('--steps', default=1000, help='maximum number of steps')
 @click.argument('molecule')
 def optimize(molecule, model, device, output, tolerance, steps):
-    """
-    optimizes molecule
-    """
     start = time.time()
     mm = Mol2(molecule)
     pos = mm.get_coordinates()
     labels = ''.join(mm.get_symbols())
-    device = torch.device(device)
+    device=torch.device(device)
     if model.lower() == 'ani1x':
         model = torchani.models.ANI1x()
     elif model.lower() == 'ani1ccx':
@@ -84,7 +74,6 @@ def optimize(molecule, model, device, output, tolerance, steps):
         print("final energy {:12.4f}".format(atom_group.get_total_energy()))
         sys.exit(1)
 
-
 @click.command()
 @click.option('--model', default='ani1x', help='predictor used')
 @click.option('--device', default='cpu', help='where data is stored')
@@ -95,9 +84,6 @@ def optimize(molecule, model, device, output, tolerance, steps):
 @click.option('--friction', default=0.2, help='friction')
 @click.argument('molecule')
 def md(molecule, model, device, output, nsteps, temperature, step, friction):
-    """
-    molecular dynamics
-    """
     start = time.time()
     mm = Mol2(molecule)
     pos = mm.get_coordinates()
@@ -113,21 +99,21 @@ def md(molecule, model, device, output, nsteps, temperature, step, friction):
     assert isinstance(model, torchani.models.ANI1x) or isinstance(model, torchani.models.ANI1ccx)
     atom_group = Atoms(symbols=labels, positions=pos, calculator=model.ase())
     print("step {:12d}\tenergy {:12.4f}".format(0, atom_group.get_total_energy()))
-    dyn = Langevin(atom_group, 1 * units.fs, temperature * units.kB, friction)
+    dyn = Langevin(atom_group, 1*units.fs, temperature*units.kB, friction)
 
     for i in range(nsteps):
         dyn.run(step)
-        print("step {:12d}\tenergy {:12.4f}".format((i + 1) * step, atom_group.get_total_energy()))
+        print("step {:12d}\tenergy {:12.4f}".format((i + 1)*step, atom_group.get_total_energy()))
         mm.coordinates = atom_group.get_positions()
         if output is not None:
             mm.write(output + '_{:06d}.mol2'.format(i))
     print("time {:12.4f}".format(time.time() - start))
     sys.exit(0)
 
-
 cli.add_command(optimize)
 cli.add_command(md)
 cli.add_command(energy)
 
 if __name__ == '__main__':
+
     cli()

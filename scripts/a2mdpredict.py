@@ -7,11 +7,9 @@ import click
 import json
 import time
 
-
 @click.group()
 def cli():
     pass
-
 
 @click.command()
 @click.option('--predictor', default='a2mdc', help='use a2mdc')
@@ -19,21 +17,15 @@ def cli():
 @click.option('--output', default=None, help='file to save the info')
 @click.argument('name')
 def predict_model(name, predictor, device, output):
-    """
-    returns a ppp containing an am2d density model obtained by neural network inference
 
-    Example:
 
-        predict-model --device=cpu --output=benzene.ml.ppp benzene.mol2
-
-    """
     start = time.time()
     dev = torch.device(device=device)
     mm = Mol2(name)
     dm = a2md_from_mol(mm)
     dm.parametrize()
     pars = dm.get_parametrization()
-    model = torch.load(MODELS[predictor], map_location=dev).to(dev, )
+    model = torch.load(MODELS[predictor], map_location=dev).to(dev)
     param = Parametrizer(model, device=dev)
     pars = param.parametrize(name, pars)
     if output is None:
@@ -51,21 +43,15 @@ def predict_model(name, predictor, device, output):
 @click.option('--output', default=None, help='file to save the info')
 @click.argument('name')
 def predict_charges(name, predictor, device, output):
-    """
-    returns a mol2 file containing charges obtained by inference
 
-    Example:
 
-        predict-charges --device=cpu --output=benzene.npa.mp2 benzene.mol2
-
-    """
     start = time.time()
     dev = torch.device(device=device)
     mm = Mol2(name)
     dm = a2md_from_mol(mm)
     dm.parametrize()
     pars = dm.get_parametrization()
-    model = torch.load(predictor, map_location=dev).to(dev, )
+    model = torch.load(predictor, map_location=dev).to(dev)
     param = Parametrizer(model, device=dev)
     pars = param.parametrize(name, pars)
     dm.read(pars)
@@ -83,6 +69,7 @@ def predict_charges(name, predictor, device, output):
         mm.write(file=output)
 
     print("TE : {:12.4f}".format(time.time() - start))
+
 
 
 cli.add_command(predict_model)

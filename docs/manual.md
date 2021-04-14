@@ -1,6 +1,5 @@
 # A2MD manual
 
-**In the near future, this manual will be moved a nicer location**
 
 ## Summary
 
@@ -30,6 +29,7 @@ and we are still working to bring the calculation of energies to the method.
 We have developped two main methods to use A2MD:
 - through the scripts located at a2md/scripts/.
 - calling the library.
+
 
 ## Contents
 
@@ -77,10 +77,7 @@ Contact us if you think that somehting is missing here!
 ### Installation
 
 To ease installation, you can install a Python environment containing all the
-modules that A2MD requires (*requirements.txt*). The file can be found at the root folder of this repo.
-If you are using python environments, you can just create a python env and then install
-all the libraries through pip. For PyTorch, you may need to download the nightly version.
-Check in the PyTorch webpage how to do it.
+modules that A2MD requires. The file can be found at the root folder of this repo.
 Given that almost all the library has been written in Python, you will not have to 
 compile but the Cdens utility, which should be as easy as :
 
@@ -97,18 +94,14 @@ NOTE: We don't have a Mac, so we unknow which sort of problems Mac users will ex
 ### Command Line Tools
 
 We'll begin by learning how to use the scripts contained in the *scripts* folder. There
-you can observe four scripts:
+you can observe three scripts:
 
 - **a2mdrun.py** : operations with a2md models.
 - **a2mdpredict.py** : operations with a2md model prediction using neural networks.
 - **a2mdutils.py**: utilities to work with the different file formats.
 - **a2mdcompare.py**: programs to evaluate electron density comparissons.
 
-To understand the different scripts, we'll run some case studies.
-
-(The other two scripts are not part of the library, but we find them very useful).
-
-![scheme01.png](scheme01.png)
+To understand the different scripts, we'll run some case studies:
 
 #### Visualizing an electron density from a QM calulation
 
@@ -302,8 +295,6 @@ we are constantly adding new functions.
 
 
 ### Library
-
-still comming
 
 ### Cdens
 

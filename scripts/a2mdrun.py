@@ -10,7 +10,6 @@ import logging
 
 logger = logging.getLogger('')
 
-
 @click.group()
 def cli():
     """
@@ -21,7 +20,6 @@ def cli():
 
     pass
 
-
 @click.command()
 @click.option('--output', default=None, help='file to save the info')
 @click.option('--expand', default=2.0, help='file to save the info')
@@ -31,13 +29,9 @@ def cli():
 @click.argument('param_file')
 def write_dx(name, param_file, output, expand, res, kind):
     """
-    writes a dx volumetric file. This type of file can be used to 3d-visualize electron density using
-    software as chimera, PyMol or VMD
 
-    Example:
-        write-dx --output=benzene.a2md.dx --expand=3.0 --res=0.25 --kind=density benzene.mol2 benzene.ppp
+    writes a dx volume file with density from an a2md fit
 
-    Note: resolution and expand units are Bohr
     """
 
     start = time.time()
@@ -56,7 +50,6 @@ def write_dx(name, param_file, output, expand, res, kind):
     print("writting to : {:s}".format(output))
     print("TE : {:12.4f}".format(time.time() - start))
 
-
 @click.command()
 @click.option('--output', default=None, help='file to save the info')
 @click.argument('name')
@@ -64,13 +57,9 @@ def write_dx(name, param_file, output, expand, res, kind):
 @click.argument('coordinates')
 def evaluate(name, param_file, coordinates, output):
     """
-    Evaluates density at specific coordinates
-
-    Example:
-        evaluate benzene.mol2 benzene.ppp coords.txt
-
-    Note: Coordinates must be in Bohr.
+    reads a model and runs an evaluation upon the specified coordinates
     """
+
     start = time.time()
 
     mm = Mol2(name)
@@ -114,31 +103,20 @@ def evaluate(name, param_file, coordinates, output):
 @click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
 @click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm', type=float)
 @click.option('--output', default=None, help="file where to store the output parameters")
-@click.option('--cluster', default=None, help="use rbf to clusterize by distance signature")  # to modify in the future
+@click.option('--cluster', default=None, help="use rbf to clusterize by distance signature") # to modify in the future
 @click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
 @click.argument('name')
 @click.argument('sample')
 def fit(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose):
-    """
-    Fits a linear density model to a density sa
-
-
-
-
-    """
     __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose)
-
 
 def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, cluster, verbose):
     """
     ajusts the parameters of a density model to a sample of electron density
     """
-    if verbose == 0:
-        logging.basicConfig(level=logging.CRITICAL)
-    elif verbose == 1:
-        logging.basicConfig(level=logging.ERROR)
-    else:
-        logging.basicConfig(level=logging.INFO)
+    if verbose == 0: logging.basicConfig(level=logging.CRITICAL)
+    elif verbose == 1 : logging.basicConfig(level=logging.ERROR)
+    else: logging.basicConfig(level=logging.INFO)
 
     start = time.time()
     logger.info("reading inputs {:s} {:s} ".format(name, sample))
@@ -151,13 +129,12 @@ def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, 
         logger.error("could not find the {:s} file".format(sample))
     except OSError:
         try:
-            logger.info("reading npy was unsuccesful. Trying csv")
+            logger.info("reading csv was unsuccesful. Trying csv")
             sample = np.loadtxt(sample)
         except ValueError:
             logger.error("could not read sample file neither as npy nor csv")
             sys.exit()
     except ValueError:
-        logger.info("reading npy was unsuccesful. Trying csv")
         sample = np.loadtxt(sample)
 
     logger.info("reading of mol2 and sample file was succesful")
@@ -165,14 +142,10 @@ def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, 
     dm = a2md_from_mol(mm)
     logger.info("parametrizing")
     try:
-        if scheme == 'default':
-            dm.parametrize()
-        elif scheme == 'extended':
-            dm.parametrize(dm.parametrization_extended)
-        elif scheme == 'harmonic':
-            dm.parametrize(dm.parametrization_harmonic)
-        elif scheme == 'spheric':
-            dm.parametrize(dm.parametrization_spherical)
+        if scheme == 'default': dm.parametrize()
+        elif scheme == 'extended' : dm.parametrize(dm.parametrization_extended)
+        elif scheme == 'harmonic' : dm.parametrize(dm.parametrization_harmonic)
+        elif scheme == 'spheric': dm.parametrize(dm.parametrization_spherical)
         else:
             print("use a default, extended, harmonic or spheric scheme")
             sys.exit(1)
@@ -211,12 +184,11 @@ def __fit_call(name, sample, opt_mode, scheme, regularization_constant, output, 
 
     print("FIT NAME:{:s} SAMPLE:{:s} MODE:{:s}, TE:{:12.4f}".format(name, sample_file, opt_mode, time.time() - start))
 
-
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
 @click.option('--regularization_constant', default=None, help='defines penalty on coefficient norm', type=float)
 @click.option('--scheme', default='default', help='either default, harmonic, extended, spheric')
-@click.option('--cluster', default=None, help="use rbf to clusterize by distance signature")  # to modify in the future
+@click.option('--cluster', default=None, help="use rbf to clusterize by distance signature") # to modify in the future
 @click.option('--verbose', default=0, help="0 for no output, 1 for error, 2 for info")
 @click.argument('names_file')
 def fit_many(names_file, opt_mode, regularization_constant, scheme, cluster, verbose):
@@ -237,8 +209,7 @@ def fit_many(names_file, opt_mode, regularization_constant, scheme, cluster, ver
         )
     global_end = time.time()
     time_elapsed = global_end - global_start
-    print("FIT_MANY, {:8d} molecules, TE={:8.4f} s, TEPM={:8.4f} s/mol".format(n, time_elapsed, time_elapsed / n))
-
+    print("FIT_MANY, {:8d} molecules, TE={:8.4f} s, TEPM={:8.4f} s/mol".format(n, time_elapsed, time_elapsed/n))
 
 @click.command()
 @click.option('--mol2_path', default=None, help="path for mol2 files")
@@ -260,20 +231,14 @@ def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, fi
         with open(filter_names) as f:
             filter_names = json.load(f)
     else:
-        filter_names = []
+        filter_names=[]
     output = []
-    if mol2_path is not None:
-        mol2_str = mol2_path + "/{:s}.mol2"
-    else:
-        mol2_str = "{:s}.mol2"
-    if sample_path is not None:
-        sample_str = sample_path + "/{:s}.npy"
-    else:
-        sample_str = "{:s}.npy"
-    if output_path is not None:
-        output_str = output_path + "/{:s}.ppp"
-    else:
-        output_str = "{:s}.ppp"
+    if mol2_path is not None : mol2_str = mol2_path + "/{:s}.mol2"
+    else: mol2_str = "{:s}.mol2"
+    if sample_path is not None : sample_str = sample_path + "/{:s}.npy"
+    else: sample_str = "{:s}.npy"
+    if output_path is not None : output_str = output_path + "/{:s}.ppp"
+    else: output_str = "{:s}.ppp"
 
     for i, n in enumerate(names):
         if n in filter_names:
@@ -293,7 +258,7 @@ def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, fi
         output_file_format = output_file
 
     for i in range(split):
-        current_chunk = output[i * len_div: (i + 1) * len_div]
+        current_chunk = output[i*len_div : (i+1)*len_div]
         output_file = output_file_format.format(i)
 
         if output_format == 'json':
@@ -304,7 +269,6 @@ def prepare_fit_many(names, output_file, mol2_path, sample_path, output_path, fi
                 for line in current_chunk:
                     f.write('{:26s} {:26s} {:26s}\n'.format(line['mol2'], line['sample'], line['output']))
     print("TE = {:8.4f}".format(time.time() - start))
-
 
 @click.command()
 @click.option('--opt_mode', default='restricted', help='either restricted, unrestricted or semirestricted')
@@ -365,7 +329,9 @@ def fit_collection(
     )
 
     if regularization_constant is not None:
+
         dm.set_regularization_constant(regularization_constant)
+
 
     if scheme == 'default':
         dm.parametrize()
@@ -401,4 +367,5 @@ cli.add_command(fit_collection)
 cli.add_command(prepare_fit_many)
 
 if __name__ == "__main__":
+
     cli()

@@ -10,19 +10,30 @@ from a2md.baseclass import A2MDBaseClass
 from a2mdio.molecules import Mol2, PDB
 from a2md.utils import convert_connectivity_tree_to_pairs
 from a2mdio import PDB_PROTEIN_TYPE_CHARGES, PDB_PROTEIN_CHARGES, PDB_PROTEIN_TYPES, PDB_PROTEIN_TOPOLOGY
-from a2mdio import MAP_AN2SYMBOL
-from typing import List, Union, Callable
-
+from  typing import List, Union, Dict, Callable
 CLUSTERING_TRESHOLD_VALUE = 0.02
 
+
+ELEMENT2AN = dict(
+    H=1,
+    C=6,
+    N=7,
+    O=8
+)
+AN2ELEMENT = [
+    '',
+    'H', 'He',
+    'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
+    '',  '',  '',  '', 'P', 'S',  '',   ''
+]
+
 SUPPORT_TYPE = {
-    "_SPHERIC": lambda args: SupportRadial(**args),
-    "_GAUSSIAN": lambda args: SupportAngular(**args),
-    "_HARMONIC": lambda args: SupportHarmonic(**args)
+    "_SPHERIC"  : lambda args : SupportRadial(**args),
+    "_GAUSSIAN" : lambda args : SupportAngular(**args),
+    "_HARMONIC" : lambda  args : SupportHarmonic(**args)
 }
 
-
-def a2md_from_mol(mol: Mol2):
+def a2md_from_mol(mol : Mol2):
     """
     returns a a2md.models.Molecule associated to a Mol2
     ---
@@ -37,8 +48,7 @@ def a2md_from_mol(mol: Mol2):
     topology = mol.get_bonds()
     segments = mol.segment_idx
     topo_array = []
-    for i in range(mol.get_number_atoms()):
-        topo_array.append([])
+    for i in range(mol.get_number_atoms()): topo_array.append([])
     for i in range(mol.get_number_bonds()):
         begin = int(topology[i, 0])
         end = int(topology[i, 1])
@@ -49,8 +59,7 @@ def a2md_from_mol(mol: Mol2):
         segments=segments
     )
 
-
-def polymer_from_pdb(mol: PDB, chain: str):
+def polymer_from_pdb(mol : PDB, chain : str ):
     """
     returns the polymer density model associated to a Mol2
     Still in development
@@ -63,8 +72,7 @@ def polymer_from_pdb(mol: PDB, chain: str):
     charge = mol.get_absolute_charges()
     topology = mol.get_bonds()
     topo_array = []
-    for i in range(mol.get_number_atoms()):
-        topo_array.append([])
+    for i in range(mol.get_number_atoms()): topo_array.append([])
     for i in range(mol.get_number_bonds()):
         begin = int(topology[i][0])
         end = int(topology[i][1])
@@ -79,15 +87,15 @@ def polymer_from_pdb(mol: PDB, chain: str):
     )
 
 
-class Molecule(A2MDBaseClass):
+
+class Molecule(A2MDBaseClass) :
     parametrization_default = TOPO_RESTRICTED_PARAMS
     parametrization_harmonic = HARMONIC_TOPO_RESTRICTED_PARAMS
     parametrization_extended = EXTENDED_TOPO_RESTRICTED_PARAMS
     parametrization_spherical = SPHERICAL_PARAMS
-
     def __init__(
-            self, coordinates: np.ndarray, atomic_numbers: Union[List[int], np.ndarray],
-            charge: Union[List[int], np.ndarray], topology: List[List[int]],
+            self, coordinates : np.ndarray, atomic_numbers : Union[List[int], np.ndarray],
+            charge : Union[List[int], np.ndarray], topology : List[List[int]],
             parameters=None, verbose=False,
             atom_labels=None, segments=None
     ):
@@ -112,7 +120,7 @@ class Molecule(A2MDBaseClass):
         :type atomic_numbers: np.ndarray
 
         """
-        A2MDBaseClass.__init__(self, name='A2MD', verbose=verbose)
+        A2MDBaseClass.__init__(self, name ='A2MD', verbose=verbose)
         self.natoms = coordinates.shape[0]
         self.coordinates = coordinates.copy()
         self.atom_charges = charge
@@ -134,13 +142,13 @@ class Molecule(A2MDBaseClass):
         # a part of the molecule corresponding to a given segment must match the sum of charges of that
         # fragment. It's an intermediate step between fully atom-charge restriction and molecule-wide single
         # restriction.
-        if segments is not None:
+        if segments is not  None:
             self.nsegments = np.unique(np.array(self.segments)).size
 
         if parameters is not None:
             self.read(parameters)
 
-    def clustering(self, clusterizer: Callable):
+    def clustering(self, clusterizer : Callable):
         """
         a2md.models.Molecule.clusterize
         ---
@@ -158,10 +166,10 @@ class Molecule(A2MDBaseClass):
         """
         import copy
 
-        coordinates = self.get_coordinates()
-        labels = self.get_symbols()
-        topology = convert_connectivity_tree_to_pairs(self.get_topology())
-        sa, sb = clusterizer(labels, topology, coordinates)
+        x = self.get_coordinates()
+        l = self.get_symbols()
+        t = convert_connectivity_tree_to_pairs(self.get_topology())
+        sa, sb = clusterizer(l, t, x)
 
         atom_charges = copy.copy(self.atom_charges)
         map_frozenfunction = copy.copy(self.map_frozenfunctions)
@@ -171,6 +179,7 @@ class Molecule(A2MDBaseClass):
         expanded_fns = []
 
         for i in range(len(function_names)):
+
             bond_ = function_names[i][2]
             name_ = function_names[i][1]
             type_ = function_types[i]
@@ -237,6 +246,7 @@ class Molecule(A2MDBaseClass):
                             current_map2bonds.append(None)
                         del c1, c2, c3
 
+
                 new_functions.append(
                     SupportEnsemble(
                         functions=current_cluster_functions,
@@ -252,6 +262,7 @@ class Molecule(A2MDBaseClass):
                 new_names.append([cluster_idx, "ENS_{:s}".format(fun_name)])
                 new_map2atom.append(cluster_idx)
                 new_functiontypes.append("_SPHERICAL")  # Harcoded
+
 
         # Part 2, cluster  anisotropic functions
         # bond cluster must contain the idx of the clusters of sa
@@ -274,6 +285,7 @@ class Molecule(A2MDBaseClass):
                         current_cluster_function_names.append(fun_info['name'])
                         current_cluster_function_types.append(fun_info['type'])
                     del c1, c2, c3
+
 
             for fun_name, fun_type in zip(current_cluster_function_names, current_cluster_function_types):
                 current_cluster_functions = []
@@ -313,7 +325,7 @@ class Molecule(A2MDBaseClass):
         self.nfunctions = len(new_functions)
         self.is_clusterized = True
 
-    def eval(self, x: np.ndarray, kind='density'):
+    def eval(self, x : np.ndarray, kind='density'):
         """
         Evaluation of A2MD at defined coordinates.
         Electron density (-density-) or electrostatic potential (-ep-)
@@ -338,7 +350,7 @@ class Molecule(A2MDBaseClass):
 
         return d
 
-    def eval_by_fun(self, x: np.ndarray, i: int):
+    def eval_by_fun(self, x : np.ndarray, i : int):
         """
         Evaluation of a specific A2MD function at defined coordinates.
         Function must be defined by its index
@@ -355,7 +367,7 @@ class Molecule(A2MDBaseClass):
         d = c * sup.eval(x)
         return d
 
-    def eval_core(self, x: np.ndarray):
+    def eval_core(self, x : np.ndarray):
         """
         Evaluation of Frozen function (representing core function) at defined coordinates.
 
@@ -366,8 +378,7 @@ class Molecule(A2MDBaseClass):
         """
         d = np.zeros(x.shape[0])
         for sup, c, f in zip(self.functions, self.opt_params, self.map_frozenfunctions):
-            if f:
-                d += c * sup.eval(x)
+            if f: d += c * sup.eval(x)
         return d
 
     def eval_by_name(self, x, fun_name):
@@ -403,7 +414,7 @@ class Molecule(A2MDBaseClass):
         for i, z in enumerate(self.atomic_numbers):
             d = x - r[i, :].reshape(1, -1)
             d = np.linalg.norm(d, axis=1) + 1e-18
-            v += z / d
+            v += z/d
         return v
 
     def eval_volume(self, spacing, resolution, kind='density', cutoff=None):
@@ -428,11 +439,11 @@ class Molecule(A2MDBaseClass):
 
         dx = np.zeros((xx.size, yy.size, zz.size))
         if cutoff is None:
-            f = lambda x: self.eval(x, kind=kind)
+            f = lambda x : self.eval(x, kind=kind)
         else:
             def f(x):
                 p = self.eval(x, kind=kind)
-                p[p > cutoff] = cutoff
+                p[p>cutoff] = cutoff
                 return p
 
         for ix in range(xx.size):
@@ -612,12 +623,13 @@ class Molecule(A2MDBaseClass):
         for xi, fn, cc, tp in zip(self.functions, self.function_names, self.opt_params, self.function_types):
 
             xi_params = xi.get_params()
-            tmp_input = dict(center=fn[0], support_type=fn[1], coefficient=cc, function_type=tp)
+            tmp_input = dict(center = fn[0], support_type = fn[1], coefficient=cc, function_type=tp)
             tmp_params = dict()
-            for key, item in xi_params.items():
+            for key, item in xi_params.items() :
                 tmp_params[key] = item
             tmp_input['params'] = tmp_params
             tmp_input['bond'] = fn[2]
+
 
             atom_parametrization_list[xi_iter] = tmp_input
             xi_iter += 1
@@ -630,7 +642,7 @@ class Molecule(A2MDBaseClass):
         :return:
         """
         if self.atom_labels is None:
-            return [MAP_AN2SYMBOL[i] for i in self.atomic_numbers]
+            return [AN2ELEMENT[i] for i in self.atomic_numbers]
         else:
             return self.atom_labels
 
@@ -674,14 +686,12 @@ class Molecule(A2MDBaseClass):
         return n_restrictions, unfrozen_map2center, frozen_map2center, q
 
     def optimize(
-            self, training_coordinates: np.ndarray, training_density: np.ndarray,
-            optimization_mode: str = 'restricted',
-            weights: np.ndarray = None
+            self, training_coordinates, training_density, optimization_mode='restricted'
     ):
         """
         sets the coefficients associated to each support function by
         minimizing the lagrangian function:
-        L = (\rho - \rho')^2 - sum lambda_{i} (int rho_{i}' dV - q_{i})
+        L = (\rho - \rho')^2 - \sum \lambda_{i} (\int \rho_{i}' dV - q_{i})
         where :
             - rho : ab-initio density
             - rho' : aAMD density
@@ -689,7 +699,6 @@ class Molecule(A2MDBaseClass):
         :param training_coordinates: coordinates of nuclei atoms
         :param training_density: density values
         :param optimization_mode: either restricted, unrestricted or semirestricted
-        :param weights: allows to modify the weight of the input samples
         :type training_coordinates: np.ndarray
         :type training_density: np.ndarray
         :type optimization_mode: str
@@ -715,12 +724,7 @@ class Molecule(A2MDBaseClass):
             raise IOError("optimization mode must be either restricted, unrestricted or semirestricted")
 
         n_training = training_coordinates.shape[0]
-        if weights is None:
-            w = np.ones(n_training, dtype='float64') / n_training
-        else:
-            if n_training != weights.size:
-                raise IOError("weights size do not match sample size")
-            w = weights
+        w = np.ones(n_training, dtype='float64') / n_training
 
         for i, frozen_fun in enumerate(frozen_ensemble):
             j = frozen_map2center[i]
@@ -736,16 +740,16 @@ class Molecule(A2MDBaseClass):
             d[i, :] = xi.eval(x)
 
         effective_gamma = self.regularization / n_coefficients
-        b[:n_coefficients, :n_coefficients] = 2 * (d * w).dot(d.T)
+        b[:n_coefficients, :n_coefficients] = 2*(d * w).dot(d.T)
         b[:n_coefficients, :n_coefficients] = b[:n_coefficients, :n_coefficients] + \
-                                              2 * effective_gamma * np.identity(n_coefficients, dtype='float64')
+            2 * effective_gamma * np.identity(n_coefficients, dtype='float64')
 
         for i, xi in enumerate(unfrozen_ensemble):
             j = unfrozen_map2center[i]
             b[n_coefficients + j, i] += xi.integral()
             b[i, n_coefficients + j] += xi.integral()
 
-        p[:n_coefficients] = 2 * (d * w).dot(r)
+        p[:n_coefficients] = 2*(d * w).dot(r)
         p[n_coefficients:] = q
 
         c = np.linalg.solve(b, p)[:n_coefficients]
@@ -756,10 +760,7 @@ class Molecule(A2MDBaseClass):
         for i, (c, xi) in enumerate(zip(self.opt_params, self.functions)):
             integral += c * xi.integral()
         self.is_optimized = True
-
-        prediction = self.eval(training_coordinates)
-        loss = np.power((prediction - training_density), 2.0).sum()
-        return loss, self.opt_params.copy()
+        return self.opt_params.copy()
 
     def parametrize(self, param_dict=None):
         """
@@ -831,6 +832,7 @@ class Molecule(A2MDBaseClass):
                         self.functions.append(funtype(ppp))
                         self.functions[-1].set_reference_frame(bonding_axis)
 
+
         self.nfunctions = len(self.functions)
         self.opt_params = np.array(self.opt_params, dtype='float64')
         return True
@@ -845,7 +847,7 @@ class Molecule(A2MDBaseClass):
         :return:
         """
         if self.functions is not None:
-            if not len(self.functions) == 0:
+            if not len(self.functions) == 0 :
                 self.log('existing support functions will be erased')
 
         function_list = []
@@ -854,7 +856,7 @@ class Molecule(A2MDBaseClass):
         map_funfrozen = []
         function_names = []
         function_types = []
-        for xi_iter in range(len(params)):
+        for xi_iter in range(len(params)) :
             ppp = params[xi_iter]
             map_fun2center.append(ppp['center'])
             opt_params.append(ppp['coefficient'])
@@ -875,7 +877,7 @@ class Molecule(A2MDBaseClass):
                     support_function = SUPPORT_TYPE['_GAUSSIAN']  # for the sake of retrocompatibility
                     function_types.append('_GAUSSIAN')
             function_list.append(support_function(input_dict))
-            if not ppp['bond'] is None:
+            if not ppp['bond'] is None :
 
                 bonding_axis = self.coordinates[ppp['bond'], :] - self.coordinates[ppp['center'], :]
                 function_list[-1].set_reference_frame(bonding_axis)
@@ -923,12 +925,9 @@ class Molecule(A2MDBaseClass):
         charges = self.atom_charges.copy()
         segment_idx = self.segments.copy()
         for i, character in enumerate(charge_str):
-            if character == 'n':
-                segment_charge = 0.0
-            elif character == '+':
-                segment_charge = -1.0
-            elif character == '-':
-                segment_charge = 1.0
+            if character == 'n': segment_charge = 0.0
+            elif character == '+' : segment_charge = -1.0
+            elif character == '-' : segment_charge = 1.0
             else:
                 raise IOError("unrecognized character!")
             len_segment = len([j for j in segment_idx if j == i])
@@ -946,9 +945,9 @@ class Polymer(Molecule):
     residue_charge_type_source = PDB_PROTEIN_TYPE_CHARGES
 
     def __init__(
-            self,
-            coordinates, atomic_numbers, atom_labels, topology, charge, atom_residx,
-            sequence, residue_names, residue_idx, parameters=None, verbose=False
+        self,
+        coordinates, atomic_numbers, atom_labels, topology, charge, atom_residx,
+        sequence, residue_names, residue_idx,  parameters=None, verbose=False
     ):
         """
         A2MD.models.Polymer
@@ -979,6 +978,7 @@ class Polymer(Molecule):
         self.residue_idx = residue_idx
         self.atom_residx = atom_residx
 
+
     def parametrize_as_polymer(self, param_dict=None):
         """
         parametrize as polymer
@@ -1008,7 +1008,7 @@ class Polymer(Molecule):
             except KeyError:
 
                 missing_keys.append((atom_resname, atom_name))
-                current_label = MAP_AN2SYMBOL[atomic_number]
+                current_label = AN2ELEMENT[atomic_number]
                 for fun in self.parametrization_default['_MODEL'][current_label]:
                     if fun['_CONNECT'] == '_NONE':
                         parameters.append(
@@ -1022,6 +1022,7 @@ class Polymer(Molecule):
                             )
                         )
                 continue
+
 
             for j, fun in enumerate(iso_funs):
                 current_fun = fun.copy()
@@ -1069,12 +1070,10 @@ class Polymer(Molecule):
             return charge
 
     def get_residue_functions(self, idx):
-        for i, (c, fun, center, name) in enumerate(
-                zip(self.opt_params, self.functions, self.map_function2center, self.function_names)):
+        for i, (c, fun, center, name) in enumerate(zip(self.opt_params, self.functions, self.map_function2center, self.function_names)):
             res_idx = self.atom_residx[center]
             if res_idx == idx:
                 yield c, fun, center, name
-
 
 class ConformerCollection(Molecule):
     """
@@ -1090,7 +1089,6 @@ class ConformerCollection(Molecule):
     a set of coordinates and densities that is the same size than the number of conformations.
 
     """
-
     def __init__(
             self,
             coordinates, atomic_numbers, charge, topology,
@@ -1193,6 +1191,7 @@ class ConformerCollection(Molecule):
         b[:n_coefficients, :n_coefficients] = 2 * (d * w).dot(d.T)
         b[:n_coefficients, :n_coefficients] = b[:n_coefficients, :n_coefficients] + \
                                               2 * effective_gamma * np.identity(n_coefficients, dtype='float64')
+
 
         for i, xi in enumerate(unfrozen_ensemble):
             j = unfrozen_map2center[i]

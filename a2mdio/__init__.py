@@ -2,7 +2,6 @@ import os
 import time
 import json
 from pathlib import Path
-from mendeleev import get_table
 
 path2files = Path(__file__).parent
 
@@ -40,23 +39,3 @@ with open(path2files / 'parameters/standard_charges.json') as f:
     PDB_PROTEIN_CHARGES= json.load(f)
 with open(path2files / 'parameters/standard_charges_by_atom.json') as f:
     PDB_PROTEIN_TYPE_CHARGES = json.load(f)
-with open(path2files / 'parameters/babel2standard.json') as f:
-    BABEL2STANDARD = json.load(f)
-
-PERIODIC_TABLE = get_table('elements')
-MAP_AN2SYMBOL = PERIODIC_TABLE[['atomic_number', 'symbol']].set_index('atomic_number')
-MAP_SYMBOL2AN = PERIODIC_TABLE[['atomic_number', 'symbol']].set_index('symbol')
-
-with open(path2files / 'parameters/wfn_symmetry_index.json') as f:
-    WFN_SYMMETRY_INDEX = json.load(f)
-
-
-def get_atomic_number(symbol):
-    an = MAP_SYMBOL2AN.loc[symbol]['atomic_number']
-    return an
-
-
-def get_symbol(atomic_number):
-    atomic_number = int(atomic_number)
-    s = MAP_AN2SYMBOL.loc[atomic_number]['symbol']
-    return s

@@ -19,15 +19,13 @@ class A2mdTest:
         self.pdb = self.path / reference['pdb']
         self.surfaces = [self.path / i for i in reference['surfaces'].keys()]
         self.wfn = self.path / reference['wfn']
-
     def __str__(self):
         return "a2md test, {:s}".format(self.name)
 
-
-benzene = A2mdTest("benzene", gdb_test['benzene'])
-methane = A2mdTest("methane", gdb_test['methane'])
-ammonium = A2mdTest("ammonium", gdb_test['ammonium'])
-water = A2mdTest("water", gdb_test['water'])
+benzene = A2mdTest("benzene", gdb_test['gdb_000214'])
+methane = A2mdTest("methane", gdb_test['gdb_000001'])
+ammonium = A2mdTest("ammonium", gdb_test['gdb_000002'])
+water = A2mdTest("water", gdb_test['gdb_000003'])
 methanethiol = A2mdTest("methanethiol", gdb_test['methanethiol'])
 all20peptide = A2mdTest("all20peptide", gdb_test['all20peptide'])
 aca = A2mdTest("aca", gdb_test['aca'])

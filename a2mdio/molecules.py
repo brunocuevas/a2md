@@ -1,4 +1,4 @@
-from a2mdio import A2MDlib, get_atomic_number, get_symbol
+from a2mdio import A2MDlib
 from a2mdio import PDB_PROTEIN_TOPOLOGY, PDB_PROTEIN_TYPES, PDB_PROTEIN_CHARGES, PDB_PROTEIN_TYPE_CHARGES
 import numpy as np
 
@@ -9,13 +9,12 @@ ATOM_LABELS = [
     '', '', '', 'c', 'n', 'o', 'f', '',
     '', '', '', 'si', 'p', 's', 'cl', ''
 ]
-
-# ATOMIC_NUMBERS = {
-#     "H": 1, "He":2,
-#     "Li": 3, "Be":4, "B":5, "C": 6, "N": 7, "O": 8,  "F": 9, "Ne":10,
-#     "Na":11, "Mg":12, "Al":13, "Si":14, "P":15, "S":16, "Cl":17, "Ar":18,
-#     "K":19, "Ca":20, "Ga":31, "Ge":32, "As":33, "Se":34, "Br":35, "Kr":36
-# }
+ATOMIC_NUMBERS = {
+    "H": 1, "He":2,
+    "Li": 3, "Be":4, "B":5, "C": 6, "N": 7, "O": 8,  "F": 9, "Ne":10,
+    "Na":11, "Mg":12, "Al":13, "Si":14, "P":15, "S":16, "Cl":17, "Ar":18,
+    "K":19, "Ca":20, "Ga":31, "Ge":32, "As":33, "Se":34, "Br":35, "Kr":36
+}
 
 UNITS_TABLE = dict(
     angstrom=dict(
@@ -62,7 +61,6 @@ class QmSetUp(A2MDlib):
         except AttributeError:
             raise IOError("some of the requested fields was missing")
         return size, total_charge, units, multiplicity, coordinates, labels
-
     def write_g09(self, file, mol, wfn=False):
         import os
 
@@ -76,14 +74,15 @@ class QmSetUp(A2MDlib):
         coordinates = coordinates * UNITS_TABLE[units]['angstrom']
         self.log("coordinates were transformed from {:s} to angstrom ".format(units))
 
+
         proc_line = '%NProcShared={:d}\n'.format(self.nprocs)
 
-        if self.disk is not None:
+        if self.disk is not None :
             disk_line = '%MaxDisk={:s}\n'.format(self.disk)
         else:
             disk_line = ''
 
-        if self.memory is not None:
+        if self.memory is not None :
             mem_line = '%MaxMem={:s}\n'.format(self.memory)
         else:
             mem_line = ''
@@ -107,7 +106,7 @@ class QmSetUp(A2MDlib):
             )
         g09_coords_str = '\n'.join(g09_coords_matrix) + '\n'
         if wfn:
-            g09_output_line = '\n{:s}\n'.format(file.replace('.g09.input', '') + '.wfn')
+            g09_output_line = '\n{:s}\n'.format(file.replace('.g09.output', '') + '.wfn')
         else:
             g09_output_line = '\n'
 
@@ -122,7 +121,7 @@ class QmSetUp(A2MDlib):
             f.write(g09_str)
 
         return g09_str
-
+        
     def write_orca(self, filename, mol):
         import os
         size, total_charge, units, multiplicity, coordinates, labels = self.get_mol_info(mol)
@@ -189,8 +188,7 @@ class MolRepresentation(A2MDlib):
         return self.bonds
 
     def get_coordinates(self, units=None):
-        if units is None:
-            units = self.units
+        if units is None: units = self.units
         return self.coordinates * UNITS_TABLE[self.units][units]
 
     def get_absolute_charges(self):
@@ -203,18 +201,17 @@ class MolRepresentation(A2MDlib):
         return self.atomic_numbers
 
     def get_symbols(self):
-        return [get_symbol(i) for i in self.atomic_numbers]
+        return [ATOM_LABELS[i].upper() for i in self.atomic_numbers]
 
     def get_atom(self, idx):
         return dict(
             atomic_number=self.atomic_numbers[idx],
-            symbol=get_symbol(self.atomic_numbers[idx]),
+            symbol=ATOM_LABELS[self.atomic_numbers[idx]].upper(),
             coordinates=self.coordinates[idx, :],
             atom_type=self.atom_types[idx],
             atom_name=self.atom_names[idx],
             charge=self.charges[idx]
         )
-
     def get_bond(self, idx):
         return dict(
             bonded_atoms=self.bonds[idx],
@@ -236,7 +233,7 @@ class MolRepresentation(A2MDlib):
 
     def get_total_charge(self):
         present_charge = np.sum(self.charges)
-        total_charge = int(np.round(present_charge, decimals=0))
+        total_charge =  int(np.round(present_charge, decimals=0))
         if total_charge - present_charge > 0.1:
             self.log("review charges; their sum is not accurate integer")
         return total_charge
@@ -247,7 +244,6 @@ class MolRepresentation(A2MDlib):
     def get_units(self):
         return self.units
 
-
 class Mol2(MolRepresentation):
     def __init__(self, file=None):
         """
@@ -255,8 +251,8 @@ class Mol2(MolRepresentation):
         :param file: file from which to read information
         """
 
-        coordinates, atomic_numbers, bonds, charges, natoms, nbonds, atom_types, atom_names, bond_types, segments, \
-        segment_idx = self.__read(fn=file)
+        coordinates, atomic_numbers, bonds, charges, natoms, nbonds, \
+        atom_types, atom_names, bond_types, segments, segment_idx = self.__read(fn=file)
 
         MolRepresentation.__init__(
             self,
@@ -270,13 +266,6 @@ class Mol2(MolRepresentation):
         self.file = file
         self.segments = segments
         self.segment_idx = segment_idx
-
-    def get_all_segs(self):
-        sidx = np.unique(np.array(self.segment_idx))
-        unique_segs = []
-        for i in sidx:
-            unique_segs.append(self.segments[self.segment_idx.index(i)])
-        return unique_segs
 
     @staticmethod
     def __read(fn):
@@ -347,7 +336,7 @@ class Mol2(MolRepresentation):
             bond_type[bond_id - 1] = bt
 
         element_names = [i.split('.')[0] for i in atom_types]
-        atomic_numbers = np.array([get_atomic_number(i) for i in element_names], dtype='int32')
+        atomic_numbers = np.array([ATOMIC_NUMBERS[i] for i in element_names], dtype='int32')
 
         return coordinate_matrix, atomic_numbers, bonds, atom_charges, number_atoms, number_bonds, \
             atom_types, atom_names, bond_type, atom_segments, atom_segments_idx
@@ -369,9 +358,9 @@ class Mol2(MolRepresentation):
 
         atoms_str = atoms_str + "@<TRIPOS>ATOM\n"
         for i in range(self.natoms):
-            atoms_str = atoms_str + "    {:d} {:<15s} {:>8.4f} {:>8.4f} {:>8.4f} {:<6s} {:3d} {:<6s} {:>8.4f}\n".format(
+            atoms_str = atoms_str + "    {:d} {:<15s} {:>8.4f} {:>8.4f} {:>8.4f} {:<6s} 1 {:<6s} {:>8.4f}\n".format(
                 i + 1, self.atom_names[i], coordinates[i, 0], coordinates[i, 1], coordinates[i, 2],
-                self.atom_types[i], self.segment_idx[i] + 1, self.segments[i], self.charges[i]
+                self.atom_types[i], self.segments[i], self.charges[i]
             )
 
         bonds_str = bonds_str + "@<TRIPOS>BOND\n"
@@ -426,15 +415,14 @@ class PDB(MolRepresentation):
     atom_types_source = PDB_PROTEIN_TYPES
     residue_charge_source = PDB_PROTEIN_CHARGES
     residue_charge_type_source = PDB_PROTEIN_TYPE_CHARGES
-
     def __init__(self, file, input_format='pdb'):
         if input_format in ['pdb', 'pqr']:
             self.input_format = input_format
         else:
             raise IOError("unrecognized input format, {:s}".format(input_format))
-
-        na, nb, nr, nc, coordinates, topo, atom_idx, atomic_numbers, atom_names, atom_residues_idx, atom_chains, \
-        atom_charges, residues_idx, residues_names, residues_charges, residues_chains, residues_extent, \
+        na, nb, nr, nc, coordinates, topo, \
+        atom_idx, atomic_numbers, atom_names, atom_residues_idx, atom_chains, atom_charges, \
+        residues_idx, residues_names, residues_charges, residues_chains, residues_extent, \
         chain_names = self.read(file=file)
 
         MolRepresentation.__init__(
@@ -455,7 +443,9 @@ class PDB(MolRepresentation):
         self.anotation = dict()
         self.sequence = self.make_sequences(self.residue_names, self.residue_chains)
 
+
     def read(self, file):
+
 
         with open(file) as f:
             contents = f.readlines()
@@ -548,9 +538,10 @@ class PDB(MolRepresentation):
         nr = len(residues_names)
         nc = len(chain_names)
 
-        return na, nb, nr, nc, coordinates, topo, atom_idx, atomic_numbers, atom_names, atom_residues_idx, \
-            atom_chains, atom_charges, residues_idx, residues_names, residues_charges, residues_chains, \
-            residues_extent, chain_names
+        return na, nb, nr, nc, coordinates, topo, \
+               atom_idx, atomic_numbers, atom_names, atom_residues_idx, atom_chains, atom_charges, \
+               residues_idx, residues_names, residues_charges, residues_chains, residues_extent, \
+               chain_names
 
     def set_residue_topology(self, resname, atom_idx, names):
         topology_buffer = []
@@ -582,11 +573,11 @@ class PDB(MolRepresentation):
         try:
             ss1_idx = names_1.index("SG")
         except ValueError:
-            raise RuntimeError("could not find a sulphur group within selection")
+            raise  RuntimeError("could not find a sulphur group within selection")
         try:
             ss2_idx = names_2.index("SG")
         except ValueError:
-            raise RuntimeError("could not find a sulphur group within selection")
+            raise  RuntimeError("could not find a sulphur group within selection")
         topology_buffer.append([atom_idx_1[ss1_idx], atom_idx_2[ss2_idx]])
         return topology_buffer
 
@@ -620,6 +611,7 @@ class PDB(MolRepresentation):
         for chain in residue_chains:
             if chain not in chain_sequences.keys():
                 chain_sequences[chain] = ""
+
 
         for chain in chain_sequences.keys():
             chain_sequences[chain] = ""

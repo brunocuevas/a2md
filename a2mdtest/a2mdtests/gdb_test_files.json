@@ -1,62 +1,62 @@
 {
-    "methane": {
-        "mol2": "methane.mol2",
-        "out": "methane.out",
-        "path": "methane",
+    "gdb_000001": {
+        "mol2": "gdb_000001.mol2",
+        "out": "gdb_000001.out",
+        "path": "gdb_000001",
         "surfaces": {
-            "methane_s01.csv": 1.5,
-            "methane_s02.csv": 0.25,
-            "methane_s03.csv": 0.15,
-            "methane_s04.csv": 0.1,
-            "methane_s05.csv": 0.01,
-            "methane_s06.csv": 0.001
+            "gdb_000001_s01.csv": 1.5,
+            "gdb_000001_s02.csv": 0.25,
+            "gdb_000001_s03.csv": 0.15,
+            "gdb_000001_s04.csv": 0.1,
+            "gdb_000001_s05.csv": 0.01,
+            "gdb_000001_s06.csv": 0.001
         },
-        "wfn": "methane.wfn",
+        "wfn": "gdb_000001.wfn",
         "pdb":""
     },
-    "ammonium": {
-        "mol2": "ammonium.mol2",
-        "out": "ammonium.out",
-        "path": "ammonium",
+    "gdb_000002": {
+        "mol2": "gdb_000002.mol2",
+        "out": "gdb_000002.out",
+        "path": "gdb_000002",
         "surfaces": {
-            "ammonium_s01.csv": 1.5,
-            "ammonium_s02.csv": 0.25,
-            "ammonium_s03.csv": 0.15,
-            "ammonium_s04.csv": 0.1,
-            "ammonium_s05.csv": 0.01,
-            "ammonium_s06.csv": 0.001
+            "gdb_000002_s01.csv": 1.5,
+            "gdb_000002_s02.csv": 0.25,
+            "gdb_000002_s03.csv": 0.15,
+            "gdb_000002_s04.csv": 0.1,
+            "gdb_000002_s05.csv": 0.01,
+            "gdb_000002_s06.csv": 0.001
         },
-        "wfn": "ammonium.wfn",
+        "wfn": "gdb_000002.wfn",
         "pdb":""
     },
-    "water": {
-        "mol2": "water.mol2",
-        "out": "water.out",
-        "path": "water",
+    "gdb_000003": {
+        "mol2": "gdb_000003.mol2",
+        "out": "gdb_000003.out",
+        "path": "gdb_000003",
         "surfaces": {
-            "water_s01.csv": 1.5,
-            "water_s02.csv": 0.25,
-            "water_s03.csv": 0.15,
-            "water_s04.csv": 0.1,
-            "water_s05.csv": 0.01,
-            "water_s06.csv": 0.001
+            "gdb_000003_s01.csv": 1.5,
+            "gdb_000003_s02.csv": 0.25,
+            "gdb_000003_s03.csv": 0.15,
+            "gdb_000003_s04.csv": 0.1,
+            "gdb_000003_s05.csv": 0.01,
+            "gdb_000003_s06.csv": 0.001
         },
-        "wfn": "water.wfn",
+        "wfn": "gdb_000003.wfn",
         "pdb": ""
     },
-    "benzene": {
-        "mol2": "benzene.mol2",
-        "out": "benzene.out",
-        "path": "benzene",
+    "gdb_000214": {
+        "mol2": "gdb_000214.mol2",
+        "out": "gdb_000214.out",
+        "path": "gdb_000214",
         "surfaces": {
-            "benzene_s01.csv": 1.5,
-            "benzene_s02.csv": 0.25,
-            "benzene_s03.csv": 0.15,
-            "benzene_s04.csv": 0.1,
-            "benzene_s05.csv": 0.01,
-            "benzene_s06.csv": 0.001
+            "gdb_000214_s01.csv": 1.5,
+            "gdb_000214_s02.csv": 0.25,
+            "gdb_000214_s03.csv": 0.15,
+            "gdb_000214_s04.csv": 0.1,
+            "gdb_000214_s05.csv": 0.01,
+            "gdb_000214_s06.csv": 0.001
         },
-        "wfn": "benzene.wfn",
+        "wfn": "gdb_000214.wfn",
         "pdb": ""
     },
     "methanethiol": {
