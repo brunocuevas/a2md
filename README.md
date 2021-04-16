@@ -22,18 +22,17 @@ Read the docs folder to learn to use the library and the CLI tools.
 
 ## Dependencies
 
-Some of the most important dependencies are:
-- numpy
-- torch
-- torchani (1.2)
+Dependencies can be installed using the requirements.txt file.
 
-We provide a Python Environment to ease installation. 
+    pip3 install -r requirements
+
+The optimum PyTorch version will depend on your hardware, so we recomend system-taylored PyTorch installations.  
 
 ## Contact
 
 There is a lot of things to polish, and we'd love feedback. Don't hesitate to contact us:
 
-	bruno.czvuria@upm.es
+	bruno.czuviria@upm.es
 
 ## Licence
 
