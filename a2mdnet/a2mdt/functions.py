@@ -43,6 +43,7 @@ def distance_vectors(sample_coords, mol_coords, labels, device):
         dv[i, :,:n_, :] = sliced_sample - masked_mol
     return dv
 
+
 def distance(dv):
     """
 
@@ -55,6 +56,7 @@ def distance(dv):
     :return:
     """
     return dv.norm(dim=3, p=2)
+
 
 def select_labels(l, t, device):
     """
@@ -208,6 +210,7 @@ def angle(dv, v, sample_coords, mol_coords, connectivity, device):
 
     return z
 
+
 def expand_parameter(labels, param):
     """
 
@@ -228,6 +231,7 @@ def expand_parameter(labels, param):
     )
     return output
 
+
 def exponential_kernel(d, a, b):
     """
 
@@ -244,6 +248,7 @@ def exponential_kernel(d, a, b):
     buffer = a_usq * buffer
     return buffer
 
+
 def xexponential_kernel(d, a, b):
     """
 
@@ -255,9 +260,25 @@ def xexponential_kernel(d, a, b):
     :return:
     """
 
-    buffer =  torch.exp(-d * b.unsqueeze(1))
+    buffer = torch.exp(-d * b.unsqueeze(1))
     buffer = a.unsqueeze(1) * buffer * d
     return buffer
+
+
+def gen_exponential_kernel(r, a, b, p):
+    """
+    Applies a * (r^p) * Exp(-b * r)
+    :param r:
+    :param a:
+    :param b:
+    :param p:
+    :return:
+    """
+    buffer = torch.exp(-r * b.unsqueeze(1))
+    buffer *= r.pow(p.unsqueeze(1))
+    buffer *= a.unsqueeze(1)
+    return buffer
+
 
 def gaussian_kernel(z, alpha):
     """
@@ -268,5 +289,15 @@ def gaussian_kernel(z, alpha):
     :param alpha:
     :return:
     """
-    buffer =  torch.exp(-alpha.unsqueeze(1) * z.pow(2.0))
+    buffer = torch.exp(-alpha.unsqueeze(1) * z.pow(2.0))
     return buffer
+
+
+def spherical_harmonic(z, alpha):
+    """
+    Applies
+    :param z:
+    :param alpha:
+    :return:
+    """
+    pass

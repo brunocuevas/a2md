@@ -1,10 +1,10 @@
 import torch
 import numpy as np
 from a2mdnet.data import convert_label2tensor
-from a2mdnet.functions import distance, distance_vectors, angle
-from a2mdnet.functions import gaussian_kernel, exponential_kernel, xexponential_kernel, gen_exponential_kernel
-from a2mdnet.functions import select_distances, select_labels
-from a2mdnet.functions import expand_parameter
+from a2mdnet.a2mdt.functions import distance, distance_vectors, angle
+from a2mdnet.a2mdt.functions import gaussian_kernel, exponential_kernel, xexponential_kernel, gen_exponential_kernel
+from a2mdnet.a2mdt.functions import select_distances, select_labels
+from a2mdnet.a2mdt.functions import expand_parameter
 from a2md.utils import element2an
 from a2mdio.molecules import UNITS_TABLE
 from a2mdio.params import AMDParameters
