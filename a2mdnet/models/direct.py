@@ -159,7 +159,7 @@ class DensityCoupled(nn.Module):
             int_aniso,
             charges
         )
-        assert type(self.density_model) is A2MDt
+        # assert type(self.density_model) is A2MDt
         density_prediction = self.density_model.forward(
             labels, connectivity, coordinates, atom_targets, bond_targets, sampling_coords
         )
