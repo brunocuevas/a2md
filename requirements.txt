@@ -17,7 +17,7 @@ kiwisolver==1.2.0
 lark-parser==0.10.0
 matplotlib==3.2.1
 mendeleev==0.6.0
-numpy==1.18.3
+numpy==1.22.0
 pandas==1.1.2
 parso==0.7.1
 pathlib==1.0.1
